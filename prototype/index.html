@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Game Prototype</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a5c2e;
+      color: #fff;
+      min-height: 100vh;
+      padding: 12px;
+    }
+
+    h1 { text-align: center; font-size: 1.2rem; margin-bottom: 8px; opacity: 0.8; }
+
+    /* ---- Table layout ---- */
+    #table {
+      display: grid;
+      grid-template-areas:
+        ".      p2     ."
+        "p3  center   p4"
+        ".      p1     .";
+      grid-template-columns: 1fr auto 1fr;
+      grid-template-rows: auto auto auto;
+      gap: 10px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* ---- Player panels ---- */
+    .player-panel {
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      padding: 8px;
+      border: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+    .player-panel.active { border-color: #ffd700; }
+    .player-panel h2 {
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+      opacity: 0.8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .player-panel h2 .badge {
+      font-size: 0.65rem;
+      background: #ffd700;
+      color: #000;
+      padding: 1px 5px;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+    .hand {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    /* ---- Cards ---- */
+    .card {
+      width: 44px;
+      height: 64px;
+      background: #fff;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: bold;
+      cursor: default;
+      border: 2px solid transparent;
+      user-select: none;
+      position: relative;
+      transition: transform 0.1s, box-shadow 0.1s;
+      color: #111;
+    }
+    .card .rank { font-size: 1rem; line-height: 1; }
+    .card .suit-icon { font-size: 0.85rem; line-height: 1; }
+    .card.red { color: #cc0000; }
+
+    .card.clickable { cursor: pointer; }
+    .card.clickable:hover { transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+    .card.valid { border-color: #00cc44; box-shadow: 0 0 6px #00cc44; }
+    .card.selected { border-color: #3388ff; box-shadow: 0 0 8px #3388ff; transform: translateY(-6px); background: #e8f0ff; }
+    .card.power { background: #fffce8; }
+
+    /* ---- Center area ---- */
+    #center {
+      grid-area: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      min-width: 220px;
+    }
+
+    #game-info {
+      background: rgba(0,0,0,0.4);
+      border-radius: 8px;
+      padding: 8px 12px;
+      text-align: center;
+      font-size: 0.8rem;
+      width: 100%;
+    }
+    #game-info .info-row { display: flex; justify-content: space-between; gap: 12px; margin: 2px 0; }
+    #game-info .label { opacity: 0.7; }
+    #game-info .value { font-weight: bold; }
+    #game-info .pending { color: #ff6666; }
+
+    #discard-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    #discard-area .label { font-size: 0.7rem; opacity: 0.7; }
+    #top-card {
+      width: 60px;
+      height: 88px;
+      font-size: 1.2rem;
+    }
+    #top-card .rank { font-size: 1.4rem; }
+    #top-card .suit-icon { font-size: 1.1rem; }
+    #active-suit-display {
+      font-size: 0.75rem;
+      background: rgba(255,215,0,0.2);
+      border: 1px solid #ffd700;
+      border-radius: 6px;
+      padding: 2px 8px;
+      display: none;
+    }
+
+    #controls {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+
+    button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+    button:not(:disabled):hover { opacity: 0.85; transform: scale(1.02); }
+
+    #btn-play { background: #00cc44; color: #000; }
+    #btn-draw { background: #cc6600; color: #fff; }
+    #btn-new  { background: #336699; color: #fff; }
+
+    /* ---- Suit picker ---- */
+    #suit-picker {
+      display: none;
+      background: rgba(0,0,0,0.85);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      width: 100%;
+    }
+    #suit-picker p { font-size: 0.8rem; margin-bottom: 8px; }
+    #suit-picker .suit-btns { display: flex; gap: 6px; justify-content: center; }
+    #suit-picker .suit-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: #fff;
+      font-size: 1.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.1s;
+    }
+    #suit-picker .suit-btn:hover { border-color: #ffd700; }
+    .suit-btn.hearts, .suit-btn.diamonds { color: #cc0000; }
+    .suit-btn.clubs, .suit-btn.spades { color: #111; }
+
+    /* ---- Message log ---- */
+    #messages {
+      background: rgba(0,0,0,0.5);
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 0.75rem;
+      max-height: 100px;
+      overflow-y: auto;
+      width: 100%;
+    }
+    #messages p { margin: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px; }
+    #messages p:first-child { font-weight: bold; color: #ffd700; }
+
+    /* ---- Win banner ---- */
+    #win-banner {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    #win-banner.show { display: flex; }
+    #win-banner .box {
+      background: #1a5c2e;
+      border: 3px solid #ffd700;
+      border-radius: 16px;
+      padding: 32px 48px;
+      text-align: center;
+    }
+    #win-banner h2 { font-size: 2rem; color: #ffd700; margin-bottom: 8px; }
+    #win-banner p { margin-bottom: 16px; }
+
+    /* ---- Grid areas ---- */
+    #p1 { grid-area: p1; }
+    #p2 { grid-area: p2; }
+    #p3 { grid-area: p3; }
+    #p4 { grid-area: p4; }
+
+    /* ---- Player arrangement labels ---- */
+    #p1 h2::before { content: 'S '; }
+    #p2 h2::before { content: 'N '; }
+    #p3 h2::before { content: 'W '; }
+    #p4 h2::before { content: 'E '; }
+  </style>
+</head>
+<body>
+<h1>Card Game Prototype — 4 Player Local</h1>
+
+<div id="table">
+  <div class="player-panel" id="p2"><h2><span id="name-p2">Player 2</span><span class="badge" id="badge-p2" style="display:none">TURN</span></h2><div class="hand" id="hand-p2"></div></div>
+  <div id="center">
+    <div id="game-info">
+      <div class="info-row"><span class="label">Turn:</span><span class="value" id="info-turn">—</span></div>
+      <div class="info-row"><span class="label">Direction:</span><span class="value" id="info-dir">—</span></div>
+      <div class="info-row"><span class="label">Deck:</span><span class="value" id="info-deck">—</span></div>
+      <div class="info-row"><span class="label">Phase:</span><span class="value" id="info-phase">—</span></div>
+      <div class="info-row pending" id="info-pending-row" style="display:none"><span class="label">Penalty:</span><span class="value" id="info-pending">—</span></div>
+    </div>
+
+    <div id="discard-area">
+      <div class="label">Discard</div>
+      <div class="card" id="top-card"><span class="rank">?</span><span class="suit-icon">?</span></div>
+      <div id="active-suit-display"></div>
+    </div>
+
+    <div id="suit-picker">
+      <p>Declare a suit (Ace played):</p>
+      <div class="suit-btns">
+        <div class="suit-btn hearts" data-suit="hearts">♥</div>
+        <div class="suit-btn diamonds" data-suit="diamonds">♦</div>
+        <div class="suit-btn clubs" data-suit="clubs">♣</div>
+        <div class="suit-btn spades" data-suit="spades">♠</div>
+      </div>
+    </div>
+
+    <div id="controls">
+      <button id="btn-play" disabled>Play Selected (0)</button>
+      <button id="btn-draw">Draw</button>
+      <button id="btn-new">New Game</button>
+    </div>
+
+    <div id="messages"><p>Game starting…</p></div>
+  </div>
+  <div class="player-panel" id="p3"><h2><span id="name-p3">Player 3</span><span class="badge" id="badge-p3" style="display:none">TURN</span></h2><div class="hand" id="hand-p3"></div></div>
+  <div class="player-panel" id="p1"><h2><span id="name-p1">Player 1</span><span class="badge" id="badge-p1" style="display:none">TURN</span></h2><div class="hand" id="hand-p1"></div></div>
+  <div class="player-panel" id="p4"><h2><span id="name-p4">Player 4</span><span class="badge" id="badge-p4" style="display:none">TURN</span></h2><div class="hand" id="hand-p4"></div></div>
+</div>
+
+<div id="win-banner">
+  <div class="box">
+    <h2 id="win-title">Player X Wins!</h2>
+    <p id="win-msg">They emptied their hand first.</p>
+    <button id="btn-win-new">Play Again</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  ENGINE — translated from TypeScript (engine/*.ts)
+// ============================================================
+
+const POWER_CARDS = ['A', '2', '8', 'J', 'Q', 'K'];
+const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
+const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+function isPowerCard(card) { return POWER_CARDS.includes(card.rank); }
+function isBlackJack(card) { return card.rank === 'J' && (card.suit === 'spades' || card.suit === 'clubs'); }
+function isRedJack(card) { return card.rank === 'J' && (card.suit === 'hearts' || card.suit === 'diamonds'); }
+
+// -- deck.ts --
+function createDeck() {
+  const deck = [];
+  for (const suit of SUITS) for (const rank of RANKS) deck.push({ rank, suit });
+  return deck;
+}
+
+function shuffleDeck(deck) {
+  const r = [...deck];
+  for (let i = r.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [r[i], r[j]] = [r[j], r[i]];
+  }
+  return r;
+}
+
+function dealCards(deck, playerCount, cardsEach) {
+  const hands = Array.from({ length: playerCount }, () => []);
+  const remaining = [...deck];
+  for (let i = 0; i < cardsEach; i++)
+    for (let p = 0; p < playerCount; p++) hands[p].push(remaining.shift());
+  return { hands, remaining };
+}
+
+function reshuffleDiscard(state) {
+  if (state.discard.length <= 1) return state;
+  const top = state.discard[state.discard.length - 1];
+  const toShuffle = state.discard.slice(0, state.discard.length - 1);
+  return { ...state, deck: [...state.deck, ...shuffleDeck(toShuffle)], discard: [top] };
+}
+
+// -- validation.ts --
+function rankIndex(rank) { return RANKS.indexOf(rank); }
+
+function getEffectiveSuit(state) {
+  if (state.activeSuit !== null) return state.activeSuit;
+  const top = state.discard[state.discard.length - 1];
+  return top ? top.suit : null;
+}
+
+function isValidPlay(card, state) {
+  const top = state.discard[state.discard.length - 1];
+  if (!top) return true;
+  const { pendingPickupType, skipsRemaining } = state;
+  if (pendingPickupType === '2') return card.rank === '2';
+  if (pendingPickupType === 'jack') return isBlackJack(card) || isRedJack(card);
+  if (skipsRemaining > 0) return card.rank === '8';
+  if (card.rank === 'Q') {
+    const cp = state.players[state.currentPlayerIndex];
+    const hasCover = cp.hand.some(c => c.suit === card.suit && c !== card && c.rank !== 'Q');
+    if (!hasCover) return false;
+  }
+  const eff = getEffectiveSuit(state);
+  if (eff !== null && card.suit === eff) return true;
+  if (card.rank === top.rank) return true;
+  return false;
+}
+
+function isValidCombo(cards, state) {
+  if (cards.length === 0) return false;
+  if (cards.length === 1) return isValidPlay(cards[0], state);
+  if (!isValidPlay(cards[0], state)) return false;
+  let direction = null;
+  let needsCoverSuit = cards[0].rank === 'Q' ? cards[0].suit : null;
+  for (let i = 1; i < cards.length; i++) {
+    const prev = cards[i - 1], curr = cards[i];
+    if (needsCoverSuit !== null) {
+      if (curr.suit !== needsCoverSuit) return false;
+      needsCoverSuit = null; direction = null;
+      if (curr.rank === 'Q') needsCoverSuit = curr.suit;
+      continue;
+    }
+    if (curr.rank === prev.rank) {
+      if (curr.rank === 'Q') needsCoverSuit = curr.suit;
+      continue;
+    }
+    if (curr.suit !== prev.suit) return false;
+    const diff = rankIndex(curr.rank) - rankIndex(prev.rank);
+    if (diff === 1) { if (direction === 'desc') return false; direction = 'asc'; }
+    else if (diff === -1) { if (direction === 'asc') return false; direction = 'desc'; }
+    else return false;
+    if (curr.rank === 'Q') needsCoverSuit = curr.suit;
+  }
+  if (needsCoverSuit !== null) return false;
+  return true;
+}
+
+// -- effects.ts --
+function applyPowerCardEffect(card, declaredSuit, state) {
+  switch (card.rank) {
+    case 'A': return { ...state, activeSuit: declaredSuit, phase: declaredSuit === null ? 'declare-suit' : state.phase };
+    case '2': return { ...state, pendingPickup: state.pendingPickup + 2, pendingPickupType: '2' };
+    case '8': return { ...state, skipsRemaining: state.skipsRemaining + 1 };
+    case 'J':
+      if (isBlackJack(card)) return { ...state, pendingPickup: state.pendingPickup + 7, pendingPickupType: 'jack' };
+      if (isRedJack(card)) return { ...state, pendingPickup: 0, pendingPickupType: null };
+      return state;
+    case 'Q': return { ...state, phase: 'cover' };
+    case 'K': return { ...state, direction: state.direction === 'clockwise' ? 'anticlockwise' : 'clockwise' };
+    default: return state;
+  }
+}
+
+// -- state.ts --
+function getNextPlayerIndex(state) {
+  const { players, currentPlayerIndex, direction, skipsRemaining } = state;
+  const count = players.length;
+  const step = direction === 'clockwise' ? 1 : -1;
+  let idx = ((currentPlayerIndex + step) % count + count) % count;
+  let skips = skipsRemaining;
+  while (skips-- > 0) idx = ((idx + step) % count + count) % count;
+  return idx;
+}
+
+function engineDrawCard(count, state) {
+  let s = { ...state };
+  const cp = s.players[s.currentPlayerIndex];
+  if (!cp) return s;
+  let drawn = [], rem = count;
+  while (rem > 0) {
+    if (s.deck.length === 0) {
+      const rs = reshuffleDiscard(s);
+      if (rs.deck.length === 0) break;
+      s = rs;
+    }
+    const card = s.deck[0];
+    if (!card) break;
+    drawn.push(card);
+    s = { ...s, deck: s.deck.slice(1) };
+    rem--;
+  }
+  const updatedPlayer = { ...cp, hand: [...cp.hand, ...drawn] };
+  const updatedPlayers = s.players.map(p => p.id === cp.id ? updatedPlayer : p);
+  const nextIndex = getNextPlayerIndex({ ...s, skipsRemaining: 0 });
+  return { ...s, players: updatedPlayers, currentPlayerIndex: nextIndex, pendingPickup: 0, pendingPickupType: null, skipsRemaining: 0, phase: 'play' };
+}
+
+function engineApplyPlay(cards, declaredSuit, state) {
+  if (!isValidCombo(cards, state)) throw new Error('Invalid combo');
+  const cp = state.players[state.currentPlayerIndex];
+  if (!cp) throw new Error('No current player');
+  const newHand = [...cp.hand];
+  for (const played of cards) {
+    const idx = newHand.findIndex(c => c.rank === played.rank && c.suit === played.suit);
+    if (idx === -1) throw new Error(`Card not in hand: ${played.rank} of ${played.suit}`);
+    newHand.splice(idx, 1);
+  }
+  const updatedPlayer = { ...cp, hand: newHand };
+  let updatedPlayers = state.players.map(p => p.id === cp.id ? updatedPlayer : p);
+  let newState = { ...state, players: updatedPlayers, discard: [...state.discard, ...cards], activeSuit: null, skipsRemaining: 0 };
+  for (const card of cards) {
+    if (isPowerCard(card)) newState = applyPowerCardEffect(card, declaredSuit, newState);
+  }
+  const lastCard = cards[cards.length - 1];
+  if (newHand.length === 0) {
+    if (!isPowerCard(lastCard)) return { ...newState, phase: 'game-over', winnerId: cp.id };
+    // Power card finish — draw 1
+    let ds = { ...newState, currentPlayerIndex: state.currentPlayerIndex };
+    if (ds.deck.length === 0) ds = reshuffleDiscard(ds);
+    let drawnCard;
+    if (ds.deck.length > 0) { drawnCard = ds.deck[0]; ds = { ...ds, deck: ds.deck.slice(1) }; }
+    const handAfterDraw = drawnCard ? [...newHand, drawnCard] : [...newHand];
+    const updatedPlayerAfterDraw = { ...cp, hand: handAfterDraw };
+    const playersAfterDraw = ds.players.map(p => p.id === cp.id ? updatedPlayerAfterDraw : p);
+    const nextIdx = getNextPlayerIndex({ ...ds, players: playersAfterDraw });
+    return { ...ds, players: playersAfterDraw, currentPlayerIndex: nextIdx, skipsRemaining: 0, phase: 'play' };
+  }
+  const nextIndex = getNextPlayerIndex(newState);
+  return { ...newState, currentPlayerIndex: nextIndex, skipsRemaining: 0, phase: 'play' };
+}
+
+function getValidPlays(state) {
+  const cp = state.players[state.currentPlayerIndex];
+  if (!cp) return [];
+  const hand = cp.hand;
+  const valid = [];
+  for (const card of hand) if (isValidPlay(card, state)) valid.push([card]);
+  // Build combos
+  function buildCombos(hand, state) {
+    const results = [];
+    function dfs(current, remaining) {
+      if (current.length >= 2) results.push([...current]);
+      for (let i = 0; i < remaining.length; i++) {
+        const candidate = [...current, remaining[i]];
+        if (isValidCombo(candidate, state)) {
+          dfs(candidate, remaining.filter((_, idx) => idx !== i));
+        }
+      }
+    }
+    for (let i = 0; i < hand.length; i++) {
+      if (isValidPlay(hand[i], state)) dfs([hand[i]], hand.filter((_, idx) => idx !== i));
+    }
+    return results;
+  }
+  for (const combo of buildCombos(hand, state)) {
+    if (combo.length > 1) valid.push(combo);
+  }
+  return valid;
+}
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+
+const PLAYER_NAMES = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
+let gameState = null;
+let selectedCards = [];     // array of card refs in current player's hand
+let pendingDeclaredSuit = null;
+let pendingPlayCards = null;
+
+function newGame() {
+  const deck = shuffleDeck(createDeck());
+  const { hands, remaining } = dealCards(deck, 4, 7);
+  const startCard = remaining[0];
+  gameState = {
+    deck: remaining.slice(1),
+    discard: [startCard],
+    players: PLAYER_NAMES.map((name, i) => ({ id: `p${i + 1}`, name, hand: hands[i], isHuman: true })),
+    currentPlayerIndex: 0,
+    direction: 'clockwise',
+    activeSuit: null,
+    pendingPickup: 0,
+    pendingPickupType: null,
+    skipsRemaining: 0,
+    phase: 'play',
+    winnerId: null,
+  };
+  selectedCards = [];
+  pendingDeclaredSuit = null;
+  pendingPlayCards = null;
+  document.getElementById('win-banner').classList.remove('show');
+  addMessage(`New game started. ${gameState.players[0].name} goes first.`);
+  render();
+}
+
+// ============================================================
+//  UI HELPERS
+// ============================================================
+
+const SUIT_SYMBOL = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
+const SUIT_CLASS = { hearts: 'red', diamonds: 'red', clubs: '', spades: '' };
+
+function cardEl(card, { clickable = false, valid = false, selected = false } = {}) {
+  const el = document.createElement('div');
+  el.className = 'card' + (SUIT_CLASS[card.suit] ? ' red' : '') + (isPowerCard(card) ? ' power' : '') + (clickable ? ' clickable' : '') + (valid ? ' valid' : '') + (selected ? ' selected' : '');
+  el.innerHTML = `<span class="rank">${card.rank}</span><span class="suit-icon">${SUIT_SYMBOL[card.suit]}</span>`;
+  el.dataset.rank = card.rank;
+  el.dataset.suit = card.suit;
+  return el;
+}
+
+function addMessage(msg) {
+  const div = document.getElementById('messages');
+  const p = document.createElement('p');
+  p.textContent = msg;
+  div.insertBefore(p, div.firstChild);
+  // keep max 20 messages
+  while (div.children.length > 20) div.removeChild(div.lastChild);
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+
+function render() {
+  if (!gameState) return;
+
+  const state = gameState;
+  const cp = state.players[state.currentPlayerIndex];
+
+  // Update info panel
+  document.getElementById('info-turn').textContent = cp.name;
+  document.getElementById('info-dir').textContent = state.direction === 'clockwise' ? '→ CW' : '← CCW';
+  document.getElementById('info-deck').textContent = `${state.deck.length} cards`;
+  document.getElementById('info-phase').textContent = state.phase;
+
+  const pendingRow = document.getElementById('info-pending-row');
+  if (state.pendingPickup > 0) {
+    pendingRow.style.display = 'flex';
+    const type = state.pendingPickupType === 'jack' ? 'Jack' : '2-stack';
+    document.getElementById('info-pending').textContent = `Draw ${state.pendingPickup} (${type})`;
+  } else {
+    pendingRow.style.display = 'none';
+  }
+
+  // Discard top card
+  const top = state.discard[state.discard.length - 1];
+  const topCardEl = document.getElementById('top-card');
+  topCardEl.className = 'card' + (SUIT_CLASS[top.suit] ? ' red' : '') + (isPowerCard(top) ? ' power' : '');
+  topCardEl.innerHTML = `<span class="rank">${top.rank}</span><span class="suit-icon">${SUIT_SYMBOL[top.suit]}</span>`;
+
+  // Active suit
+  const activeSuitEl = document.getElementById('active-suit-display');
+  if (state.activeSuit) {
+    activeSuitEl.style.display = 'block';
+    activeSuitEl.textContent = `Active suit: ${SUIT_SYMBOL[state.activeSuit]} ${state.activeSuit}`;
+  } else {
+    activeSuitEl.style.display = 'none';
+  }
+
+  // Suit picker
+  const suitPicker = document.getElementById('suit-picker');
+  suitPicker.style.display = (state.phase === 'declare-suit') ? 'block' : 'none';
+
+  // Valid cards for current player
+  const validPlays = getValidPlays(state);
+  const validCardKeys = new Set();
+  for (const play of validPlays) {
+    for (const c of play) validCardKeys.add(`${c.rank}|${c.suit}`);
+  }
+
+  // Render each player's hand
+  state.players.forEach((player, i) => {
+    const panelId = `p${i + 1}`;
+    const panel = document.getElementById(panelId);
+    const handEl = document.getElementById(`hand-${panelId}`);
+    const badge = document.getElementById(`badge-${panelId}`);
+    const nameEl = document.getElementById(`name-${panelId}`);
+    nameEl.textContent = player.name;
+
+    const isActive = i === state.currentPlayerIndex;
+    panel.classList.toggle('active', isActive);
+    badge.style.display = isActive ? 'inline-block' : 'none';
+
+    handEl.innerHTML = '';
+    player.hand.forEach(card => {
+      const key = `${card.rank}|${card.suit}`;
+      const isValid = isActive && validCardKeys.has(key);
+      const isSelected = selectedCards.some(c => c === card);
+      const el = cardEl(card, { clickable: isActive, valid: isValid && !isSelected, selected: isSelected });
+      if (isActive) {
+        el.addEventListener('click', () => onCardClick(card));
+      }
+      handEl.appendChild(el);
+    });
+  });
+
+  // Controls
+  const btnPlay = document.getElementById('btn-play');
+  const btnDraw = document.getElementById('btn-draw');
+  btnPlay.textContent = `Play Selected (${selectedCards.length})`;
+  btnPlay.disabled = selectedCards.length === 0 || !isValidCombo(selectedCards, state);
+  btnDraw.disabled = state.phase === 'declare-suit';
+}
+
+// ============================================================
+//  INTERACTIONS
+// ============================================================
+
+function onCardClick(card) {
+  const state = gameState;
+  if (!state || state.phase === 'game-over') return;
+  const cp = state.players[state.currentPlayerIndex];
+  if (!cp.hand.includes(card)) return;
+
+  const idx = selectedCards.indexOf(card);
+  if (idx !== -1) {
+    // Deselect
+    selectedCards.splice(idx, 1);
+  } else {
+    // Try adding to selection
+    const candidate = [...selectedCards, card];
+    // Allow if adding this card keeps the combo valid OR it's the first card and valid to play
+    if (candidate.length === 1 ? isValidPlay(card, state) : isValidCombo(candidate, state)) {
+      selectedCards.push(card);
+    } else {
+      // If can't extend, replace selection
+      selectedCards = isValidPlay(card, state) ? [card] : [];
+    }
+  }
+  render();
+}
+
+function onPlaySelected() {
+  if (!gameState || selectedCards.length === 0) return;
+  const state = gameState;
+  if (!isValidCombo(selectedCards, state)) {
+    addMessage('Invalid combo — cannot play these cards together.');
+    return;
+  }
+
+  // Check if an Ace is being played — need suit declaration
+  const hasAce = selectedCards.some(c => c.rank === 'A');
+  if (hasAce && state.phase !== 'declare-suit') {
+    pendingPlayCards = [...selectedCards];
+    // Show suit picker inline
+    gameState = { ...gameState, phase: 'declare-suit' };
+    render();
+    addMessage('Ace played — pick a suit.');
+    return;
+  }
+
+  commitPlay(selectedCards, pendingDeclaredSuit ?? null);
+}
+
+function commitPlay(cards, declaredSuit) {
+  try {
+    const cp = gameState.players[gameState.currentPlayerIndex];
+    const cardNames = cards.map(c => `${c.rank}${SUIT_SYMBOL[c.suit]}`).join(', ');
+    const newState = engineApplyPlay(cards, declaredSuit, gameState);
+    gameState = newState;
+    selectedCards = [];
+    pendingDeclaredSuit = null;
+    pendingPlayCards = null;
+
+    let msg = `${cp.name} played ${cardNames}.`;
+    if (newState.pendingPickup > 0) msg += ` Next player must draw ${newState.pendingPickup}!`;
+    if (newState.skipsRemaining > 0) msg += ` ${newState.skipsRemaining} player(s) skipped!`;
+    if (newState.direction !== gameState.direction) msg += ` Direction reversed!`;
+    addMessage(msg);
+
+    if (newState.phase === 'game-over') {
+      showWin(newState.winnerId);
+    } else {
+      render();
+    }
+  } catch (e) {
+    addMessage(`Error: ${e.message}`);
+    selectedCards = [];
+    render();
+  }
+}
+
+function onDraw() {
+  if (!gameState) return;
+  const state = gameState;
+  const cp = state.players[state.currentPlayerIndex];
+  const count = state.pendingPickup > 0 ? state.pendingPickup : 1;
+  const newState = engineDrawCard(count, state);
+  const msg = count > 1
+    ? `${cp.name} draws ${count} cards (penalty).`
+    : `${cp.name} draws 1 card.`;
+  gameState = newState;
+  selectedCards = [];
+  addMessage(msg);
+  render();
+}
+
+function onSuitChosen(suit) {
+  if (!gameState) return;
+  if (pendingPlayCards) {
+    // We were mid-play with an Ace
+    pendingDeclaredSuit = suit;
+    const cards = pendingPlayCards;
+    pendingPlayCards = null;
+    // Reset phase to play so commitPlay works correctly
+    gameState = { ...gameState, phase: 'play' };
+    addMessage(`Suit declared: ${SUIT_SYMBOL[suit]} ${suit}`);
+    commitPlay(cards, suit);
+  } else if (gameState.phase === 'declare-suit') {
+    // Suit declaration after state already set to declare-suit
+    const newState = { ...gameState, activeSuit: suit, phase: 'play' };
+    gameState = newState;
+    addMessage(`Suit declared: ${SUIT_SYMBOL[suit]} ${suit}`);
+    render();
+  }
+}
+
+function showWin(winnerId) {
+  const winner = gameState.players.find(p => p.id === winnerId);
+  const name = winner ? winner.name : 'Unknown';
+  document.getElementById('win-title').textContent = `${name} Wins!`;
+  document.getElementById('win-msg').textContent = `${name} emptied their hand first. Well played!`;
+  document.getElementById('win-banner').classList.add('show');
+  addMessage(`GAME OVER — ${name} wins!`);
+}
+
+// ============================================================
+//  EVENT LISTENERS
+// ============================================================
+
+document.getElementById('btn-play').addEventListener('click', onPlaySelected);
+document.getElementById('btn-draw').addEventListener('click', onDraw);
+document.getElementById('btn-new').addEventListener('click', newGame);
+document.getElementById('btn-win-new').addEventListener('click', newGame);
+
+document.querySelectorAll('.suit-btn').forEach(btn => {
+  btn.addEventListener('click', () => onSuitChosen(btn.dataset.suit));
+});
+
+// ============================================================
+//  START
+// ============================================================
+
+newGame();
+</script>
+</body>
+</html>

@@ -14,10 +14,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "types": ["jest", "node"],
-    "baseUrl": ".",
-    "paths": {
-      "engine/*": ["engine/*"]
-    }
   },
   "include": ["engine/**/*", "server/**/*", "app/**/*", "shared/**/*"],
   "exclude": ["node_modules", "dist"]

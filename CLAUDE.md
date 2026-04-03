@@ -23,9 +23,9 @@ Full rules are in GAME_RULES.md — read that file before writing any game logic
 [x] engine/state.ts
 [x] engine/ai.ts
 [x] engine tests passing (77/77)
-[ ] server scaffolded
+[x] server scaffolded
 [ ] app scaffolded
-[ ] local prototype working
+[x] local prototype working
 [ ] multiplayer working
 
 ## Commands

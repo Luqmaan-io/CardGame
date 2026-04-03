@@ -1,0 +1,29 @@
+{
+  "name": "card-game",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "dev:server": "ts-node server/index.ts",
+    "dev:app": "expo start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Luqmaan-io/CardGame.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Luqmaan-io/CardGame/issues"
+  },
+  "homepage": "https://github.com/Luqmaan-io/CardGame#readme",
+  "description": "",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.2",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "typescript": "^6.0.2"
+  }
+}

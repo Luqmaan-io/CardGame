@@ -16,13 +16,13 @@ Full rules are in GAME_RULES.md — read that file before writing any game logic
 - Use functional, immutable patterns in the engine.
 
 ## Current build status
-[ ] engine/types.ts
-[ ] engine/deck.ts
-[ ] engine/validation.ts
-[ ] engine/effects.ts
-[ ] engine/state.ts
-[ ] engine/ai.ts
-[ ] engine tests passing
+[x] engine/types.ts
+[x] engine/deck.ts
+[x] engine/validation.ts
+[x] engine/effects.ts
+[x] engine/state.ts
+[x] engine/ai.ts
+[x] engine tests passing (77/77)
 [ ] server scaffolded
 [ ] app scaffolded
 [ ] local prototype working

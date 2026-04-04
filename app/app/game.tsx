@@ -11,6 +11,7 @@ import { useSocket } from '../hooks/useSocket';
 import { useGameStore } from '../store/gameStore';
 import { GameBoard } from '../components/GameBoard';
 import { SuitPicker } from '../components/SuitPicker';
+import { TurnTimer } from '../components/TurnTimer';
 import { getValidPlays } from '../../engine/ai';
 import type { Card, Suit } from '../../engine/types';
 
@@ -124,6 +125,8 @@ export default function GameScreen() {
         onCardSelect={isMyTurn ? handleCardSelect : () => {}}
         message={getMessage()}
       />
+
+      <TurnTimer timerStartedAt={gameState.timerStartedAt} />
 
       {/* Action bar — only shown on my turn */}
       {isMyTurn && gameState.phase !== 'declare-suit' && (

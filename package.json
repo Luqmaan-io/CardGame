@@ -5,7 +5,7 @@
   "scripts": {
     "test": "jest",
     "dev:server": "nodemon --exec ts-node server/index.ts",
-    "dev:app": "expo start"
+    "dev:app": "cd app && expo start"
   },
   "repository": {
     "type": "git",

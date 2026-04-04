@@ -13,6 +13,12 @@ import {
 } from './roomManager';
 import { Room } from './types';
 
+// Stamp the current time as the turn start; skip for game-over (no more turns)
+function withTimer(state: GameState): GameState {
+  if (state.phase === 'game-over') return state;
+  return { ...state, timerStartedAt: Date.now() };
+}
+
 function initGameState(room: Room): GameState {
   const deck = shuffleDeck(createDeck());
   const playerIds = room.players.map((p) => p.playerId);
@@ -40,6 +46,10 @@ function initGameState(room: Room): GameState {
     skipsRemaining: 0,
     phase: 'play',
     winnerId: null,
+    timerStartedAt: null,
+    timeoutStrikes: {},
+    sessionScores: {},
+    onCardsDeclarations: [],
   };
 }
 
@@ -66,7 +76,10 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       return;
     }
     socket.join(data.roomId);
-    io.to(data.roomId).emit('room:updated', { room: result });
+    // Tell the joiner they joined (sets roomId + playerId in their store)
+    socket.emit('room:joined', { roomId: result.id, room: result });
+    // Tell everyone else the room was updated
+    socket.to(data.roomId).emit('room:updated', { room: result });
   });
 
   // room:start — host triggers game start
@@ -81,9 +94,10 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       return;
     }
     const state = initGameState(room);
-    const updated: Room = { ...room, state, status: 'playing' };
+    const timedState = withTimer(state);
+    const updated: Room = { ...room, state: timedState, status: 'playing' };
     updateRoom(updated);
-    io.to(data.roomId).emit('game:state', { state });
+    io.to(data.roomId).emit('game:state', { state: timedState });
   });
 
   // game:play — { roomId, cards: Card[], declaredSuit?: Suit }
@@ -112,9 +126,10 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
 
       try {
         const newState = applyPlay(data.cards, data.declaredSuit ?? null, room.state);
-        const updated: Room = { ...room, state: newState, status: newState.phase === 'game-over' ? 'finished' : 'playing' };
+        const timedState = withTimer(newState);
+        const updated: Room = { ...room, state: timedState, status: timedState.phase === 'game-over' ? 'finished' : 'playing' };
         updateRoom(updated);
-        io.to(data.roomId).emit('game:state', { state: newState });
+        io.to(data.roomId).emit('game:state', { state: timedState });
       } catch (err) {
         socket.emit('game:error', { message: (err as Error).message });
       }
@@ -138,9 +153,10 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
 
     const drawCount = room.state.pendingPickup > 0 ? room.state.pendingPickup : 1;
     const newState = drawCard(drawCount, room.state);
-    const updated: Room = { ...room, state: newState };
+    const timedState = withTimer(newState);
+    const updated: Room = { ...room, state: timedState };
     updateRoom(updated);
-    io.to(data.roomId).emit('game:state', { state: newState });
+    io.to(data.roomId).emit('game:state', { state: timedState });
   });
 
   // game:declare-suit — { roomId, suit: Suit }
@@ -170,9 +186,10 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       activeSuit: data.suit,
       phase: 'play',
     };
-    const updated: Room = { ...room, state: newState };
+    const timedState = withTimer(newState);
+    const updated: Room = { ...room, state: timedState };
     updateRoom(updated);
-    io.to(data.roomId).emit('game:state', { state: newState });
+    io.to(data.roomId).emit('game:state', { state: timedState });
   });
 
   // disconnect

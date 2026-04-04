@@ -14,6 +14,10 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     skipsRemaining: 0,
     phase: 'play',
     winnerId: null,
+    timerStartedAt: null,
+    timeoutStrikes: {},
+    sessionScores: {},
+    onCardsDeclarations: [],
     ...overrides,
   };
 }

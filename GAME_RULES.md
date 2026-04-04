@@ -143,6 +143,46 @@ The first player to legally empty their hand on a non-power card wins. The game 
  
 ---
  
+## Turn Timer
+
+- Each player has **30 seconds** to complete their turn.
+- The timer resets at the start of every turn.
+- If the timer expires, the player **automatically draws one card** and their turn ends — this counts as a **timeout strike**.
+- Strikes are **consecutive only** — if a player makes any valid move on their turn, their strike count resets to zero.
+
+| Strike | Consequence |
+|---|---|
+| Strike 1 | Auto-draw, turn passes. All players see: `"[Player] ran out of time"` |
+| Strike 2 | Auto-draw, turn passes. Stronger warning: `"[Player] is about to be removed"` |
+| Strike 3 | Player is **kicked** from the game. Their cards are shuffled into the draw pile. The game continues with remaining players. |
+
+- If a kick reduces the game to **one player**, that player wins immediately.
+- **Disconnection is treated the same as a timeout** — the 30-second window serves as the reconnection grace period before a strike is issued.
+
+---
+
+## I'm On Cards
+
+- When a player believes they can win on their next turn, they may voluntarily declare **"I'm on cards"** before ending their current turn.
+- This is **entirely the player's choice** — the app never automatically announces it or hints at it.
+- The declaration is a **bluff tool** — a player can declare it even if they cannot actually win next turn.
+- When declared, all other players are notified: `"[Player name] is on cards!"`
+- There is **no penalty** for a false declaration.
+- There is **no penalty** for failing to declare when you could win.
+- The declaration **resets automatically** at the start of that player's next turn (whether they win or not).
+
+---
+
+## Scoring
+
+- Each completed game awards **1 point** to the winner.
+- Points accumulate across multiple games in the same session.
+- **No points are awarded for position** — 2nd, 3rd, and 4th place score nothing.
+- A player who is **kicked due to 3 consecutive timeouts** scores nothing for that game.
+- Session scores are displayed on the results screen and **persist until the room is closed**.
+
+---
+
 ## State Model (for developers)
  
 The game engine must track the following at all times:

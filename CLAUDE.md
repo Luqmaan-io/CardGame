@@ -22,7 +22,7 @@ Full rules are in GAME_RULES.md — read that file before writing any game logic
 [x] engine/effects.ts
 [x] engine/state.ts
 [x] engine/ai.ts
-[x] engine tests passing (77/77)
+[x] engine tests passing (100/100)
 [x] server scaffolded
 [ ] app scaffolded
 [x] local prototype working

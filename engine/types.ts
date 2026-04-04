@@ -28,6 +28,10 @@ export interface GameState {
   skipsRemaining: number;
   phase: GamePhase;
   winnerId: string | null;
+  timerStartedAt: number | null;
+  timeoutStrikes: Record<string, number>;
+  sessionScores: Record<string, number>;
+  onCardsDeclarations: string[];
 }
 
 export const POWER_CARDS: Rank[] = ['A', '2', '8', 'J', 'Q', 'K'];

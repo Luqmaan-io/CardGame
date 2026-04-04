@@ -2,7 +2,7 @@ import { Card, GameState, Player, Suit } from './types';
 import { isPowerCard } from './types';
 import { isValidCombo } from './validation';
 import { applyPowerCardEffect } from './effects';
-import { reshuffleDiscard } from './deck';
+import { reshuffleDiscard, shuffleDeck } from './deck';
 
 export function getNextPlayerIndex(state: GameState): number {
   const { players, currentPlayerIndex, direction, skipsRemaining } = state;
@@ -41,10 +41,8 @@ export function drawCard(count: number, state: GameState): GameState {
 
   while (remaining > 0) {
     if (currentState.deck.length === 0) {
-      // Try to reshuffle discard into deck
       const reshuffled = reshuffleDiscard(currentState);
       if (reshuffled.deck.length === 0) {
-        // Both deck and discard are empty — stop drawing gracefully
         break;
       }
       currentState = reshuffled;
@@ -72,8 +70,11 @@ export function drawCard(count: number, state: GameState): GameState {
 
   const nextIndex = getNextPlayerIndex({
     ...currentState,
-    skipsRemaining: 0, // drawing does not carry skips
+    players: updatedPlayers,
+    skipsRemaining: 0,
   });
+
+  const nextPlayer = updatedPlayers[nextIndex];
 
   return {
     ...currentState,
@@ -83,6 +84,10 @@ export function drawCard(count: number, state: GameState): GameState {
     pendingPickupType: null,
     skipsRemaining: 0,
     phase: 'play',
+    timerStartedAt: null,
+    onCardsDeclarations: nextPlayer
+      ? clearOnCardsDeclarationInner(nextPlayer.id, state.onCardsDeclarations)
+      : state.onCardsDeclarations,
   };
 }
 
@@ -117,14 +122,15 @@ export function applyPlay(
   // Add cards to discard
   let newDiscard = [...state.discard, ...cards];
 
-  // Build intermediate state
-  let newState: GameState = {
+  // Build intermediate state — reset strike for successful move, reset timer
+  let newState: GameState = applyMoveSuccess(currentPlayer.id, {
     ...state,
     players: updatedPlayers,
     discard: newDiscard,
-    activeSuit: null, // reset activeSuit; Ace effect will re-set if needed
-    skipsRemaining: 0, // reset; 8 effects will accumulate
-  };
+    activeSuit: null,
+    skipsRemaining: 0,
+    timerStartedAt: null,
+  });
 
   // Apply power card effects in order
   for (const card of cards) {
@@ -139,16 +145,15 @@ export function applyPlay(
 
   if (handEmpty) {
     if (!isPowerCard(lastCard)) {
-      // Win!
+      // Win — award session point
+      const scoredState = awardWin(currentPlayer.id, newState);
       return {
-        ...newState,
+        ...scoredState,
         phase: 'game-over',
         winnerId: currentPlayer.id,
       };
     } else {
-      // Power card finish — draw 1 card for the current player without
-      // resetting pendingPickup/pendingPickupType (those belong to the next
-      // player) and using current skipsRemaining to advance correctly.
+      // Power card finish — draw 1 card for the current player
       let drawState = { ...newState, currentPlayerIndex: state.currentPlayerIndex };
       if (drawState.deck.length === 0) {
         drawState = reshuffleDiscard(drawState);
@@ -164,23 +169,188 @@ export function applyPlay(
         p.id === currentPlayer.id ? updatedPlayerAfterDraw : p
       );
       const nextIdxAfterDraw = getNextPlayerIndex({ ...drawState, players: playersAfterDraw });
+      const nextPlayerAfterDraw = playersAfterDraw[nextIdxAfterDraw];
       return {
         ...drawState,
         players: playersAfterDraw,
         currentPlayerIndex: nextIdxAfterDraw,
         skipsRemaining: 0,
         phase: 'play',
+        timerStartedAt: null,
+        onCardsDeclarations: nextPlayerAfterDraw
+          ? clearOnCardsDeclarationInner(nextPlayerAfterDraw.id, drawState.onCardsDeclarations)
+          : drawState.onCardsDeclarations,
       };
     }
   }
 
   // Advance to next player
   const nextIndex = getNextPlayerIndex(newState);
+  const nextPlayer = newState.players[nextIndex];
 
   return {
     ...newState,
     currentPlayerIndex: nextIndex,
     skipsRemaining: 0,
     phase: 'play',
+    timerStartedAt: null,
+    onCardsDeclarations: nextPlayer
+      ? clearOnCardsDeclarationInner(nextPlayer.id, newState.onCardsDeclarations)
+      : newState.onCardsDeclarations,
+  };
+}
+
+// ─── Timer / strike helpers ───────────────────────────────────────────────────
+
+/**
+ * Called when a player's turn timer expires.
+ * Strike 1–2: auto-draw one card, advance turn.
+ * Strike 3: kick the player, shuffle their hand into the deck, advance turn.
+ * If only one player remains after kick, that player wins immediately.
+ */
+export function applyTimeout(state: GameState): GameState {
+  const currentPlayer = state.players[state.currentPlayerIndex];
+  if (!currentPlayer) return state;
+
+  const playerId = currentPlayer.id;
+  const currentStrikes = state.timeoutStrikes[playerId] ?? 0;
+  const newStrikes = currentStrikes + 1;
+
+  if (newStrikes >= 3) {
+    // Kick the player — shuffle their hand into the deck
+    const newDeck = shuffleDeck([...state.deck, ...currentPlayer.hand]);
+    const remainingPlayers = state.players.filter((p) => p.id !== playerId);
+
+    // Base state after kick, reset that player's strikes
+    const kickedStrikes = { ...state.timeoutStrikes };
+    delete kickedStrikes[playerId];
+
+    if (remainingPlayers.length === 1) {
+      // Last player standing wins
+      const winner = remainingPlayers[0]!;
+      const scoredState = awardWin(winner.id, {
+        ...state,
+        deck: newDeck,
+        players: remainingPlayers,
+        timeoutStrikes: kickedStrikes,
+      });
+      return {
+        ...scoredState,
+        phase: 'game-over',
+        winnerId: winner.id,
+        timerStartedAt: null,
+      };
+    }
+
+    // Clamp currentPlayerIndex in case it was at or beyond the removed player
+    const newIndex = state.currentPlayerIndex >= remainingPlayers.length
+      ? 0
+      : state.currentPlayerIndex;
+
+    const nextPlayer = remainingPlayers[newIndex];
+
+    return {
+      ...state,
+      deck: newDeck,
+      players: remainingPlayers,
+      currentPlayerIndex: newIndex,
+      phase: 'play',
+      timerStartedAt: null,
+      timeoutStrikes: kickedStrikes,
+      onCardsDeclarations: nextPlayer
+        ? clearOnCardsDeclarationInner(nextPlayer.id, state.onCardsDeclarations)
+        : state.onCardsDeclarations,
+    };
+  }
+
+  // Strike 1 or 2 — draw one card, advance turn
+  let drawState: GameState = { ...state };
+  if (drawState.deck.length === 0) {
+    drawState = reshuffleDiscard(drawState);
+  }
+  let drawnCard: Card | undefined;
+  if (drawState.deck.length > 0) {
+    drawnCard = drawState.deck[0];
+    drawState = { ...drawState, deck: drawState.deck.slice(1) };
+  }
+  const newHand = drawnCard
+    ? [...currentPlayer.hand, drawnCard]
+    : [...currentPlayer.hand];
+  const updatedPlayer: Player = { ...currentPlayer, hand: newHand };
+  const updatedPlayers = drawState.players.map((p) =>
+    p.id === playerId ? updatedPlayer : p
+  );
+
+  const nextIndex = getNextPlayerIndex({ ...drawState, players: updatedPlayers, skipsRemaining: 0 });
+  const nextPlayer = updatedPlayers[nextIndex];
+
+  return {
+    ...drawState,
+    players: updatedPlayers,
+    currentPlayerIndex: nextIndex,
+    pendingPickup: 0,
+    pendingPickupType: null,
+    skipsRemaining: 0,
+    phase: 'play',
+    timerStartedAt: null,
+    timeoutStrikes: { ...state.timeoutStrikes, [playerId]: newStrikes },
+    onCardsDeclarations: nextPlayer
+      ? clearOnCardsDeclarationInner(nextPlayer.id, drawState.onCardsDeclarations)
+      : drawState.onCardsDeclarations,
+  };
+}
+
+/**
+ * Resets the consecutive timeout strike for playerId to 0.
+ * Called after any successful valid move.
+ */
+export function applyMoveSuccess(playerId: string, state: GameState): GameState {
+  if ((state.timeoutStrikes[playerId] ?? 0) === 0) return state;
+  return {
+    ...state,
+    timeoutStrikes: { ...state.timeoutStrikes, [playerId]: 0 },
+  };
+}
+
+/**
+ * Adds playerId to onCardsDeclarations.
+ * Only valid during that player's own turn.
+ */
+export function declareOnCards(playerId: string, state: GameState): GameState {
+  const currentPlayer = state.players[state.currentPlayerIndex];
+  if (!currentPlayer || currentPlayer.id !== playerId) {
+    throw new Error('Can only declare "on cards" on your own turn.');
+  }
+  if (state.onCardsDeclarations.includes(playerId)) return state;
+  return {
+    ...state,
+    onCardsDeclarations: [...state.onCardsDeclarations, playerId],
+  };
+}
+
+/**
+ * Removes playerId from onCardsDeclarations.
+ * Called at the start of that player's next turn (internally by turn-advance helpers).
+ */
+export function clearOnCardsDeclaration(playerId: string, state: GameState): GameState {
+  return {
+    ...state,
+    onCardsDeclarations: clearOnCardsDeclarationInner(playerId, state.onCardsDeclarations),
+  };
+}
+
+function clearOnCardsDeclarationInner(playerId: string, declarations: string[]): string[] {
+  return declarations.filter((id) => id !== playerId);
+}
+
+/**
+ * Increments sessionScores[playerId] by 1.
+ * Called when a winner is determined.
+ */
+export function awardWin(playerId: string, state: GameState): GameState {
+  const current = state.sessionScores[playerId] ?? 0;
+  return {
+    ...state,
+    sessionScores: { ...state.sessionScores, [playerId]: current + 1 },
   };
 }

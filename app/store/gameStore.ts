@@ -22,8 +22,10 @@ interface GameStore {
   selectedCards: Card[];
   socket: Socket | null;
   playerName: string;
+  error: string | null;
 
   setGameState: (state: GameState) => void;
+  setError: (error: string | null) => void;
   setRoom: (roomId: string, playerId: string) => void;
   setRoomInfo: (room: RoomInfo) => void;
   setSocket: (socket: Socket) => void;
@@ -42,8 +44,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   selectedCards: [],
   socket: null,
   playerName: '',
+  error: null,
 
   setGameState: (state) => set({ gameState: state, selectedCards: [] }),
+  setError: (error) => set({ error }),
 
   setRoom: (roomId, playerId) => set({ roomId, myPlayerId: playerId }),
 

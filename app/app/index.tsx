@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
-  Alert,
   SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -16,7 +15,7 @@ import { useGameStore } from '../store/gameStore';
 export default function HomeScreen() {
   const router = useRouter();
   const { createRoom, joinRoom, startGame } = useSocket();
-  const { playerName, setPlayerName, roomId, roomInfo, myPlayerId, gameState } =
+  const { playerName, setPlayerName, roomId, roomInfo, myPlayerId, gameState, error, setError } =
     useGameStore();
   const [joinCode, setJoinCode] = useState('');
 
@@ -27,23 +26,32 @@ export default function HomeScreen() {
     }
   }, [gameState]);
 
+  // Clear error after 4 seconds
+  useEffect(() => {
+    if (!error) return;
+    const id = setTimeout(() => setError(null), 4000);
+    return () => clearTimeout(id);
+  }, [error]);
+
   function handleCreate() {
     if (!playerName.trim()) {
-      Alert.alert('Name required', 'Enter your name first');
+      setError('Enter your name first');
       return;
     }
+    setError(null);
     createRoom(4);
   }
 
   function handleJoin() {
     if (!playerName.trim()) {
-      Alert.alert('Name required', 'Enter your name first');
+      setError('Enter your name first');
       return;
     }
     if (!joinCode.trim()) {
-      Alert.alert('Room code required', 'Enter a room code');
+      setError('Enter a room code');
       return;
     }
+    setError(null);
     joinRoom(joinCode.trim().toUpperCase());
   }
 
@@ -54,6 +62,12 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <Text style={styles.title}>Card Game</Text>
+
+        {error ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
 
         {!roomId ? (
           // ── Lobby ──────────────────────────────────────────────────
@@ -143,6 +157,19 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  errorBanner: {
+    backgroundColor: '#b71c1c',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   safe: {
     flex: 1,
     backgroundColor: '#121212',

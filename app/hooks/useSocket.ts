@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
-import { Alert } from 'react-native';
 import type { Card, Suit } from '../../engine/types';
 import { useGameStore, RoomInfo } from '../store/gameStore';
 
@@ -9,7 +8,7 @@ import { useGameStore, RoomInfo } from '../store/gameStore';
 const SERVER_URL = 'http://localhost:3001';
 
 export function useSocket() {
-  const { socket, setSocket, setGameState, setRoom, setRoomInfo } =
+  const { socket, setSocket, setGameState, setRoom, setRoomInfo, setError } =
     useGameStore();
 
   useEffect(() => {
@@ -52,7 +51,7 @@ export function useSocket() {
     );
 
     newSocket.on('game:error', ({ message }: { message: string }) => {
-      Alert.alert('Game Error', message);
+      setError(message);
     });
   }, []);
 

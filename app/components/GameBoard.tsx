@@ -213,6 +213,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   myArea: {
-    minHeight: 104,
+    minHeight: 162,
   },
 });

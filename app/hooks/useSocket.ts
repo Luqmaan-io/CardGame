@@ -8,7 +8,7 @@ import { useGameStore, RoomInfo } from '../store/gameStore';
 const SERVER_URL = 'http://localhost:3001';
 
 export function useSocket() {
-  const { socket, setSocket, setGameState, setRoom, setRoomInfo, setError } =
+  const { socket, setSocket, setGameState, setRoom, setRoomInfo, setError, setPendingTimeoutNotification } =
     useGameStore();
 
   useEffect(() => {
@@ -53,6 +53,21 @@ export function useSocket() {
     newSocket.on('game:error', ({ message }: { message: string }) => {
       setError(message);
     });
+
+    newSocket.on(
+      'game:timeout',
+      ({ playerName, strikesRemaining }: { playerId: string; playerName: string; strikesRemaining: number }) => {
+        let text: string;
+        if (strikesRemaining === 0) {
+          text = `${playerName} was removed from the game`;
+        } else if (strikesRemaining === 1) {
+          text = `${playerName} ran out of time — 1 more timeout and they're removed!`;
+        } else {
+          text = `${playerName} ran out of time`;
+        }
+        setPendingTimeoutNotification(text);
+      }
+    );
   }, []);
 
   function playCards(cards: Card[], declaredSuit?: Suit) {
@@ -85,5 +100,10 @@ export function useSocket() {
     s?.emit('game:declare-suit', { roomId, suit });
   }
 
-  return { playCards, drawCard, createRoom, joinRoom, startGame, declareSuit };
+  function declareOnCards() {
+    const { socket: s, roomId } = useGameStore.getState();
+    s?.emit('game:declare-on-cards', { roomId });
+  }
+
+  return { playCards, drawCard, createRoom, joinRoom, startGame, declareSuit, declareOnCards };
 }

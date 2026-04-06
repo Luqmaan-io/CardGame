@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useGameStore } from '../store/gameStore';
 import { GameBoard } from '../components/GameBoard';
 import { SuitPicker } from '../components/SuitPicker';
 import { TurnTimer } from '../components/TurnTimer';
+import { Toast, ToastMessage } from '../components/Toast';
 import { getValidPlays } from '../../engine/ai';
 import type { Card, Suit } from '../../engine/types';
 
@@ -25,14 +26,24 @@ export default function GameScreen() {
     selectCard,
     deselectCard,
     clearSelection,
+    pendingTimeoutNotification,
   } = useGameStore();
   const [showSuitPicker, setShowSuitPicker] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const toastIdRef = useRef(0);
 
   useEffect(() => {
     if (gameState?.phase === 'game-over') {
       router.replace('/results');
     }
   }, [gameState?.phase]);
+
+  useEffect(() => {
+    if (!pendingTimeoutNotification) return;
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, text: pendingTimeoutNotification }]);
+    useGameStore.getState().setPendingTimeoutNotification(null);
+  }, [pendingTimeoutNotification]);
 
   if (!gameState) {
     return (
@@ -117,12 +128,15 @@ export default function GameScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Toast messages={toasts} onExpire={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
       <GameBoard
         gameState={gameState}
         myPlayerId={myPlayerId}
         validPlays={validPlays}
         selectedCards={selectedCards}
         onCardSelect={isMyTurn ? handleCardSelect : () => {}}
+        onClearSelection={clearSelection}
+        isMyTurn={isMyTurn}
         message={getMessage()}
       />
 

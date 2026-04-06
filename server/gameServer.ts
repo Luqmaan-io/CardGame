@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { Suit, Card, GameState } from '../engine/types';
 import { createDeck, shuffleDeck, dealCards } from '../engine/deck';
 import { isValidCombo } from '../engine/validation';
-import { applyPlay, drawCard } from '../engine/state';
+import { applyPlay, drawCard, declareOnCards, applyTimeout } from '../engine/state';
 import {
   createRoom,
   joinRoom,
@@ -12,6 +12,56 @@ import {
   getRoom,
 } from './roomManager';
 import { Room } from './types';
+
+// ─── Server-side turn timer ───────────────────────────────────────────────────
+
+const roomTimers = new Map<string, NodeJS.Timeout>();
+
+function clearTurnTimer(roomId: string): void {
+  const existing = roomTimers.get(roomId);
+  if (existing) {
+    clearTimeout(existing);
+    roomTimers.delete(roomId);
+  }
+}
+
+function startTurnTimer(roomId: string, io: Server): void {
+  clearTurnTimer(roomId);
+  const timer = setTimeout(() => handleTimeout(roomId, io), 30_000);
+  roomTimers.set(roomId, timer);
+}
+
+function handleTimeout(roomId: string, io: Server): void {
+  roomTimers.delete(roomId); // timer already fired — remove stale entry
+  const room = getRoom(roomId);
+  if (!room || !room.state) return;
+
+  const currentPlayer = room.state.players[room.state.currentPlayerIndex];
+  if (!currentPlayer) return;
+
+  const currentStrikes = room.state.timeoutStrikes[currentPlayer.id] ?? 0;
+  const newStrikes = currentStrikes + 1;
+  const strikesRemaining = Math.max(0, 3 - newStrikes);
+
+  const roomPlayer = room.players.find((p) => p.playerId === currentPlayer.id);
+  const playerName = roomPlayer?.name ?? currentPlayer.id.slice(0, 8);
+
+  io.to(roomId).emit('game:timeout', { playerId: currentPlayer.id, playerName, strikesRemaining });
+
+  const newState = applyTimeout(room.state);
+  const timedState = newState.phase === 'game-over' ? newState : withTimer(newState);
+  const updated: Room = {
+    ...room,
+    state: timedState,
+    status: timedState.phase === 'game-over' ? 'finished' : 'playing',
+  };
+  updateRoom(updated);
+  io.to(roomId).emit('game:state', { state: timedState });
+
+  if (timedState.phase !== 'game-over') {
+    startTurnTimer(roomId, io);
+  }
+}
 
 // Stamp the current time as the turn start; skip for game-over (no more turns)
 function withTimer(state: GameState): GameState {
@@ -98,6 +148,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     const updated: Room = { ...room, state: timedState, status: 'playing' };
     updateRoom(updated);
     io.to(data.roomId).emit('game:state', { state: timedState });
+    startTurnTimer(data.roomId, io);
   });
 
   // game:play — { roomId, cards: Card[], declaredSuit?: Suit }
@@ -125,11 +176,15 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       }
 
       try {
+        clearTurnTimer(data.roomId);
         const newState = applyPlay(data.cards, data.declaredSuit ?? null, room.state);
         const timedState = withTimer(newState);
         const updated: Room = { ...room, state: timedState, status: timedState.phase === 'game-over' ? 'finished' : 'playing' };
         updateRoom(updated);
         io.to(data.roomId).emit('game:state', { state: timedState });
+        if (timedState.phase !== 'game-over') {
+          startTurnTimer(data.roomId, io);
+        }
       } catch (err) {
         socket.emit('game:error', { message: (err as Error).message });
       }
@@ -151,12 +206,14 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       return;
     }
 
+    clearTurnTimer(data.roomId);
     const drawCount = room.state.pendingPickup > 0 ? room.state.pendingPickup : 1;
     const newState = drawCard(drawCount, room.state);
     const timedState = withTimer(newState);
     const updated: Room = { ...room, state: timedState };
     updateRoom(updated);
     io.to(data.roomId).emit('game:state', { state: timedState });
+    startTurnTimer(data.roomId, io);
   });
 
   // game:declare-suit — { roomId, suit: Suit }
@@ -181,6 +238,7 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       return;
     }
 
+    clearTurnTimer(data.roomId);
     const newState: GameState = {
       ...room.state,
       activeSuit: data.suit,
@@ -190,6 +248,26 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     const updated: Room = { ...room, state: timedState };
     updateRoom(updated);
     io.to(data.roomId).emit('game:state', { state: timedState });
+    startTurnTimer(data.roomId, io);
+  });
+
+  // game:declare-on-cards — { roomId }
+  socket.on('game:declare-on-cards', (data: { roomId: string }) => {
+    const room = getRoom(data.roomId);
+    if (!room || !room.state) {
+      socket.emit('game:error', { message: 'No active game in room' });
+      return;
+    }
+    const roomPlayer = room.players.find((p) => p.socketId === socket.id);
+    if (!roomPlayer) return;
+    try {
+      const newState = declareOnCards(roomPlayer.playerId, room.state);
+      const updated: Room = { ...room, state: newState };
+      updateRoom(updated);
+      io.to(data.roomId).emit('game:state', { state: newState });
+    } catch (err) {
+      socket.emit('game:error', { message: (err as Error).message });
+    }
   });
 
   // disconnect
@@ -198,10 +276,14 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     if (!room) return;
 
     const updated = leaveRoom(room.id, socket.id);
-    if (updated.players.length === 0) return; // empty room, discard silently
+    if (updated.players.length === 0) {
+      clearTurnTimer(room.id);
+      return; // empty room, discard silently
+    }
 
     // If game was in progress, mark finished
     if (updated.status === 'playing') {
+      clearTurnTimer(room.id);
       const finished: Room = { ...updated, status: 'finished' };
       updateRoom(finished);
       io.to(room.id).emit('game:error', {

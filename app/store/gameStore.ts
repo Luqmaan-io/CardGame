@@ -23,6 +23,7 @@ interface GameStore {
   socket: Socket | null;
   playerName: string;
   error: string | null;
+  pendingTimeoutNotification: string | null;
 
   setGameState: (state: GameState) => void;
   setError: (error: string | null) => void;
@@ -34,6 +35,7 @@ interface GameStore {
   deselectCard: (card: Card) => void;
   clearSelection: () => void;
   reset: () => void;
+  setPendingTimeoutNotification: (msg: string | null) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -45,9 +47,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   socket: null,
   playerName: '',
   error: null,
+  pendingTimeoutNotification: null,
 
   setGameState: (state) => set({ gameState: state, selectedCards: [] }),
   setError: (error) => set({ error }),
+  setPendingTimeoutNotification: (msg) => set({ pendingTimeoutNotification: msg }),
 
   setRoom: (roomId, playerId) => set({ roomId, myPlayerId: playerId }),
 

@@ -1,6 +1,7 @@
 import { Card, GameState, Player, Suit } from './types';
 import { isPowerCard } from './types';
 import { isValidCombo } from './validation';
+import { canWinNextTurn } from './validation';
 import { applyPowerCardEffect } from './effects';
 import { reshuffleDiscard, shuffleDeck } from './deck';
 
@@ -30,6 +31,32 @@ export function checkWinCondition(playerId: string, state: GameState): boolean {
   return player.hand.length === 0;
 }
 
+/**
+ * Advance the turn to the next player.
+ * Resets skipsRemaining, sets phase to 'play', clears currentPlayerHasActed,
+ * and clears onCardsDeclarations for the incoming player.
+ */
+export function advanceTurn(state: GameState): GameState {
+  const nextIndex = getNextPlayerIndex(state);
+  const nextPlayer = state.players[nextIndex];
+  return {
+    ...state,
+    currentPlayerIndex: nextIndex,
+    skipsRemaining: 0,
+    phase: 'play',
+    timerStartedAt: null,
+    currentPlayerHasActed: false,
+    onCardsDeclarations: nextPlayer
+      ? clearOnCardsDeclarationInner(nextPlayer.id, state.onCardsDeclarations)
+      : state.onCardsDeclarations,
+  };
+}
+
+/**
+ * Draw `count` cards for the current player.
+ * Does NOT advance the turn — call advanceTurn() after this.
+ * Sets currentPlayerHasActed: true.
+ */
 export function drawCard(count: number, state: GameState): GameState {
   let currentState = { ...state };
 
@@ -68,29 +95,23 @@ export function drawCard(count: number, state: GameState): GameState {
     p.id === currentPlayer.id ? updatedPlayer : p
   );
 
-  const nextIndex = getNextPlayerIndex({
-    ...currentState,
-    players: updatedPlayers,
-    skipsRemaining: 0,
-  });
-
-  const nextPlayer = updatedPlayers[nextIndex];
-
   return {
     ...currentState,
     players: updatedPlayers,
-    currentPlayerIndex: nextIndex,
     pendingPickup: 0,
     pendingPickupType: null,
     skipsRemaining: 0,
     phase: 'play',
-    timerStartedAt: null,
-    onCardsDeclarations: nextPlayer
-      ? clearOnCardsDeclarationInner(nextPlayer.id, state.onCardsDeclarations)
-      : state.onCardsDeclarations,
+    currentPlayerHasActed: true,
   };
 }
 
+/**
+ * Apply a valid combo play for the current player.
+ * Does NOT advance the turn — call advanceTurn() after this.
+ * Sets currentPlayerHasActed: true.
+ * Immediately returns game-over state when the win condition is met.
+ */
 export function applyPlay(
   cards: Card[],
   declaredSuit: Suit | null,
@@ -145,15 +166,16 @@ export function applyPlay(
 
   if (handEmpty) {
     if (!isPowerCard(lastCard)) {
-      // Win — award session point
+      // Win — award session point and end game
       const scoredState = awardWin(currentPlayer.id, newState);
       return {
         ...scoredState,
         phase: 'game-over',
         winnerId: currentPlayer.id,
+        currentPlayerHasActed: true,
       };
     } else {
-      // Power card finish — draw 1 card for the current player
+      // Power card finish — draw 1 card for current player, stay on their turn
       let drawState = { ...newState, currentPlayerIndex: state.currentPlayerIndex };
       if (drawState.deck.length === 0) {
         drawState = reshuffleDiscard(drawState);
@@ -168,35 +190,20 @@ export function applyPlay(
       const playersAfterDraw = drawState.players.map((p) =>
         p.id === currentPlayer.id ? updatedPlayerAfterDraw : p
       );
-      const nextIdxAfterDraw = getNextPlayerIndex({ ...drawState, players: playersAfterDraw });
-      const nextPlayerAfterDraw = playersAfterDraw[nextIdxAfterDraw];
       return {
         ...drawState,
         players: playersAfterDraw,
-        currentPlayerIndex: nextIdxAfterDraw,
-        skipsRemaining: 0,
-        phase: 'play',
-        timerStartedAt: null,
-        onCardsDeclarations: nextPlayerAfterDraw
-          ? clearOnCardsDeclarationInner(nextPlayerAfterDraw.id, drawState.onCardsDeclarations)
-          : drawState.onCardsDeclarations,
+        phase: newState.phase === 'declare-suit' ? 'declare-suit' : 'play',
+        currentPlayerHasActed: true,
       };
     }
   }
 
-  // Advance to next player
-  const nextIndex = getNextPlayerIndex(newState);
-  const nextPlayer = newState.players[nextIndex];
-
+  // Normal play — stay on current player, awaiting end-turn / declaration
   return {
     ...newState,
-    currentPlayerIndex: nextIndex,
-    skipsRemaining: 0,
-    phase: 'play',
-    timerStartedAt: null,
-    onCardsDeclarations: nextPlayer
-      ? clearOnCardsDeclarationInner(nextPlayer.id, newState.onCardsDeclarations)
-      : newState.onCardsDeclarations,
+    phase: newState.phase === 'declare-suit' ? 'declare-suit' : 'play',
+    currentPlayerHasActed: true,
   };
 }
 
@@ -204,7 +211,7 @@ export function applyPlay(
 
 /**
  * Called when a player's turn timer expires.
- * Strike 1–2: auto-draw one card, advance turn.
+ * Strike 1–2: auto-draw one card, advance turn immediately (no declaration window).
  * Strike 3: kick the player, shuffle their hand into the deck, advance turn.
  * If only one player remains after kick, that player wins immediately.
  */
@@ -239,6 +246,7 @@ export function applyTimeout(state: GameState): GameState {
         phase: 'game-over',
         winnerId: winner.id,
         timerStartedAt: null,
+        currentPlayerHasActed: false,
       };
     }
 
@@ -257,13 +265,14 @@ export function applyTimeout(state: GameState): GameState {
       phase: 'play',
       timerStartedAt: null,
       timeoutStrikes: kickedStrikes,
+      currentPlayerHasActed: false,
       onCardsDeclarations: nextPlayer
         ? clearOnCardsDeclarationInner(nextPlayer.id, state.onCardsDeclarations)
         : state.onCardsDeclarations,
     };
   }
 
-  // Strike 1 or 2 — draw one card, advance turn
+  // Strike 1 or 2 — draw one card, advance turn immediately (bypass declaration window)
   let drawState: GameState = { ...state };
   if (drawState.deck.length === 0) {
     drawState = reshuffleDiscard(drawState);
@@ -281,23 +290,17 @@ export function applyTimeout(state: GameState): GameState {
     p.id === playerId ? updatedPlayer : p
   );
 
-  const nextIndex = getNextPlayerIndex({ ...drawState, players: updatedPlayers, skipsRemaining: 0 });
-  const nextPlayer = updatedPlayers[nextIndex];
-
-  return {
+  const withStrikes: GameState = {
     ...drawState,
     players: updatedPlayers,
-    currentPlayerIndex: nextIndex,
     pendingPickup: 0,
     pendingPickupType: null,
     skipsRemaining: 0,
-    phase: 'play',
-    timerStartedAt: null,
+    currentPlayerHasActed: true,
     timeoutStrikes: { ...state.timeoutStrikes, [playerId]: newStrikes },
-    onCardsDeclarations: nextPlayer
-      ? clearOnCardsDeclarationInner(nextPlayer.id, drawState.onCardsDeclarations)
-      : drawState.onCardsDeclarations,
   };
+
+  return advanceTurn(withStrikes);
 }
 
 /**
@@ -313,24 +316,74 @@ export function applyMoveSuccess(playerId: string, state: GameState): GameState 
 }
 
 /**
- * Adds playerId to onCardsDeclarations.
- * Only valid during that player's own turn.
+ * Declare "I'm on cards" for the current player.
+ * Requires: it is currently this player's turn AND currentPlayerHasActed === true.
+ * Validates whether the player can actually win next turn via canWinNextTurn.
+ * If valid: adds playerId to onCardsDeclarations, returns { newState, isValid: true }.
+ * If invalid: draws 2 cards as penalty (without advancing turn), returns { newState, isValid: false }.
+ * Does NOT advance the turn — call advanceTurn() after this.
  */
-export function declareOnCards(playerId: string, state: GameState): GameState {
+export function declareOnCards(
+  playerId: string,
+  state: GameState
+): { newState: GameState; isValid: boolean } {
   const currentPlayer = state.players[state.currentPlayerIndex];
   if (!currentPlayer || currentPlayer.id !== playerId) {
     throw new Error('Can only declare "on cards" on your own turn.');
   }
-  if (state.onCardsDeclarations.includes(playerId)) return state;
-  return {
-    ...state,
-    onCardsDeclarations: [...state.onCardsDeclarations, playerId],
+  if (!state.currentPlayerHasActed) {
+    throw new Error('Must complete your action (play or draw) before declaring.');
+  }
+
+  const isValid = canWinNextTurn(playerId, state);
+
+  if (isValid) {
+    if (state.onCardsDeclarations.includes(playerId)) {
+      // Already declared — idempotent
+      return { newState: state, isValid: true };
+    }
+    const newState: GameState = {
+      ...state,
+      onCardsDeclarations: [...state.onCardsDeclarations, playerId],
+    };
+    return { newState, isValid: true };
+  }
+
+  // Invalid declaration — draw 2 as penalty (inline, no turn advance)
+  let penaltyState = { ...state };
+  let drawn: Card[] = [];
+  let remaining = 2;
+  while (remaining > 0) {
+    if (penaltyState.deck.length === 0) {
+      const reshuffled = reshuffleDiscard(penaltyState);
+      if (reshuffled.deck.length === 0) break;
+      penaltyState = reshuffled;
+    }
+    const card = penaltyState.deck[0];
+    if (!card) break;
+    drawn.push(card);
+    penaltyState = { ...penaltyState, deck: penaltyState.deck.slice(1) };
+    remaining--;
+  }
+
+  const updatedPlayer: Player = {
+    ...currentPlayer,
+    hand: [...currentPlayer.hand, ...drawn],
   };
+  const updatedPlayers = penaltyState.players.map((p) =>
+    p.id === playerId ? updatedPlayer : p
+  );
+
+  const newState: GameState = {
+    ...penaltyState,
+    players: updatedPlayers,
+  };
+  return { newState, isValid: false };
 }
 
 /**
  * Removes playerId from onCardsDeclarations.
- * Called at the start of that player's next turn (internally by turn-advance helpers).
+ * Called at the start of that player's next turn (internally by advanceTurn).
  */
 export function clearOnCardsDeclaration(playerId: string, state: GameState): GameState {
   return {

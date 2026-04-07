@@ -1,5 +1,5 @@
 import { Card, GameState, Rank, Suit } from './types';
-import { isBlackJack, isRedJack } from './types';
+import { isBlackJack, isRedJack, isPowerCard } from './types';
 
 const RANK_ORDER: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
@@ -58,6 +58,62 @@ export function isValidPlay(card: Card, state: GameState): boolean {
   // Match suit (or active suit declared by Ace) OR match rank
   if (effectiveSuit !== null && card.suit === effectiveSuit) return true;
   if (card.rank === top.rank) return true;
+
+  return false;
+}
+
+/**
+ * Returns true if the player has at least one valid combo that would empty
+ * their hand entirely AND whose last card is not a power card.
+ *
+ * Queen edge case: if a Queen appears in the winning combo, the card immediately
+ * after it in the combo must be same-suit and NOT a power card.
+ */
+export function canWinNextTurn(playerId: string, state: GameState): boolean {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.hand.length === 0) return false;
+
+  const hand = player.hand;
+  const targetLength = hand.length;
+
+  // Build the player state as-if it's their turn (same state, just checking for combos)
+  const checkState: GameState = { ...state, currentPlayerIndex: state.players.indexOf(player) };
+
+  // DFS to find a combo that empties the hand and ends on a non-power card
+  function dfs(current: Card[], remaining: Card[]): boolean {
+    // Check if this combo empties the hand and ends on a non-power card
+    if (current.length === targetLength) {
+      const lastCard = current[current.length - 1]!;
+      if (isPowerCard(lastCard)) return false;
+      // Queen edge case: verify no Queen in combo has a power-card cover
+      // isValidCombo already enforces Queen coverage, so we just need to ensure
+      // no power card immediately follows a Queen in the combo
+      for (let i = 0; i < current.length - 1; i++) {
+        if (current[i]!.rank === 'Q') {
+          const cover = current[i + 1]!;
+          if (isPowerCard(cover)) return false;
+        }
+      }
+      return true;
+    }
+
+    for (let i = 0; i < remaining.length; i++) {
+      const candidate = [...current, remaining[i]!];
+      if (isValidCombo(candidate, checkState)) {
+        const next = remaining.filter((_, idx) => idx !== i);
+        if (dfs(candidate, next)) return true;
+      }
+    }
+    return false;
+  }
+
+  // Try starting from each card that is valid as a first play
+  for (let i = 0; i < hand.length; i++) {
+    if (isValidPlay(hand[i]!, checkState)) {
+      const remaining = hand.filter((_, idx) => idx !== i);
+      if (dfs([hand[i]!], remaining)) return true;
+    }
+  }
 
   return false;
 }

@@ -163,13 +163,17 @@ The first player to legally empty their hand on a non-power card wins. The game 
 
 ## I'm On Cards
 
-- When a player believes they can win on their next turn, they may voluntarily declare **"I'm on cards"** before ending their current turn.
-- This is **entirely the player's choice** — the app never automatically announces it or hints at it.
-- The declaration is a **bluff tool** — a player can declare it even if they cannot actually win next turn.
-- When declared, all other players are notified: `"[Player name] is on cards!"`
-- There is **no penalty** for a false declaration.
-- There is **no penalty** for failing to declare when you could win.
-- The declaration **resets automatically** at the start of that player's next turn (whether they win or not).
+- A player may declare **"I'm on cards"** only after completing their action for the turn (after playing cards or drawing) and before passing to the next player.
+- The declaration button appears as a **final action at the end of the player's turn** — not at the start.
+- When a player taps "I'm on cards" the engine immediately validates whether their remaining hand contains **at least one valid winning play** for their next turn.
+- A **winning play** is defined as: a valid combo that would empty the player's hand completely, where the final card in that combo is **not** a power card (A, 2, 8, J, Q, K).
+- **Queen edge case:** if the player's hand contains a Queen as part of a potential winning combo, the cover card must also be present in hand and must **not** be a power card.
+- **If the declaration is valid:** all other players are notified `"[Player name] is on cards!"` and the declaration is recorded in game state.
+- **If the declaration is invalid** (engine determines the player cannot actually win next turn): the player immediately draws 2 cards as a penalty, no notification is sent to other players, a private message shows to the declaring player only: `"You're not on cards — draw 2"`.
+- The declaration is **not** a bluff tool — false declarations are penalised.
+- If a player legitimately declares but game state changes before their next turn (e.g. Ace changes suit) making their winning play no longer valid — **no penalty applies**, the declaration simply clears.
+- The declaration **resets automatically** at the start of that player's next turn regardless of outcome.
+- There is **no limit** on how many times a player can declare per game, but each false declaration costs 2 cards.
 
 ---
 

@@ -1,6 +1,7 @@
 import {
   applyTimeout,
   applyMoveSuccess,
+  advanceTurn,
   declareOnCards,
   clearOnCardsDeclaration,
   awardWin,
@@ -38,6 +39,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     timeoutStrikes: {},
     sessionScores: {},
     onCardsDeclarations: [],
+    currentPlayerHasActed: false,
     ...overrides,
   };
 }
@@ -174,28 +176,68 @@ describe('applyMoveSuccess', () => {
 // ─── declareOnCards ──────────────────────────────────────────────────────────
 
 describe('declareOnCards', () => {
-  it('adds playerId to onCardsDeclarations during their turn', () => {
-    const state = makeState({ currentPlayerIndex: 0 });
-    const result = declareOnCards('p1', state);
-    expect(result.onCardsDeclarations).toContain('p1');
+  // Build a state where the player has a valid winning hand (one non-power card matching discard)
+  function makeActedState(overrides: Partial<GameState> = {}): GameState {
+    return makeState({
+      currentPlayerIndex: 0,
+      currentPlayerHasActed: true,
+      discard: [{ rank: '5', suit: 'hearts' }],
+      players: [
+        { id: 'p1', hand: [{ rank: '5', suit: 'clubs' }], isHuman: false },
+        { id: 'p2', hand: [{ rank: '3', suit: 'clubs' }], isHuman: false },
+      ],
+      ...overrides,
+    });
+  }
+
+  it('adds playerId to onCardsDeclarations when declaration is valid', () => {
+    const state = makeActedState();
+    const { newState, isValid } = declareOnCards('p1', state);
+    expect(isValid).toBe(true);
+    expect(newState.onCardsDeclarations).toContain('p1');
   });
 
-  it('is a no-op if already declared', () => {
-    const state = makeState({ onCardsDeclarations: ['p1'] });
-    const result = declareOnCards('p1', state);
-    expect(result.onCardsDeclarations.filter((id) => id === 'p1')).toHaveLength(1);
+  it('is a no-op if already declared (valid hand)', () => {
+    const state = makeActedState({ onCardsDeclarations: ['p1'] });
+    const { newState, isValid } = declareOnCards('p1', state);
+    expect(isValid).toBe(true);
+    expect(newState.onCardsDeclarations.filter((id) => id === 'p1')).toHaveLength(1);
   });
 
   it('throws when called on the wrong player\'s turn', () => {
-    const state = makeState({ currentPlayerIndex: 1 }); // p2's turn
+    const state = makeActedState({ currentPlayerIndex: 1 }); // p2's turn
     expect(() => declareOnCards('p1', state)).toThrow();
   });
 
-  it('other players can see the declaration in state', () => {
-    const state = makeState({ currentPlayerIndex: 0 });
-    const result = declareOnCards('p1', state);
-    // Any observer reading result.onCardsDeclarations can see 'p1'
-    expect(result.onCardsDeclarations.includes('p1')).toBe(true);
+  it('throws when player has not yet acted this turn', () => {
+    const state = makeActedState({ currentPlayerHasActed: false });
+    expect(() => declareOnCards('p1', state)).toThrow();
+  });
+
+  it('other players can see the declaration in state when valid', () => {
+    const state = makeActedState();
+    const { newState } = declareOnCards('p1', state);
+    expect(newState.onCardsDeclarations.includes('p1')).toBe(true);
+  });
+
+  it('draws 2 cards as penalty when declaration is invalid', () => {
+    // Player has a power card only — cannot win next turn
+    const deck = [{ rank: '9', suit: 'spades' }, { rank: '10', suit: 'spades' }] as const;
+    const state = makeState({
+      currentPlayerIndex: 0,
+      currentPlayerHasActed: true,
+      deck: [...deck],
+      discard: [{ rank: '5', suit: 'hearts' }],
+      players: [
+        { id: 'p1', hand: [{ rank: 'A', suit: 'hearts' }], isHuman: false },
+        { id: 'p2', hand: [{ rank: '3', suit: 'clubs' }], isHuman: false },
+      ],
+    });
+    const { newState, isValid } = declareOnCards('p1', state);
+    expect(isValid).toBe(false);
+    expect(newState.onCardsDeclarations).not.toContain('p1');
+    const p1 = newState.players.find((p) => p.id === 'p1')!;
+    expect(p1.hand).toHaveLength(3); // 1 original + 2 penalty
   });
 });
 
@@ -215,8 +257,8 @@ describe('clearOnCardsDeclaration', () => {
     expect(result.onCardsDeclarations).toEqual(['p2']);
   });
 
-  it('declaration is cleared on the next player\'s turn advance via applyPlay', () => {
-    // p1 declares, then p2 takes a turn — when turn advances back to p1 it clears
+  it('declaration is cleared when turn advances back to the declaring player', () => {
+    // p1 declared, now p2 takes a turn — when advanceTurn runs back to p1 it clears
     const state = makeState({
       onCardsDeclarations: ['p1'],
       currentPlayerIndex: 1, // p2's turn
@@ -226,9 +268,10 @@ describe('clearOnCardsDeclaration', () => {
         makePlayer('p2', [{ rank: '6', suit: 'clubs' }, { rank: '3', suit: 'clubs' }]),
       ],
     });
-    // p2 plays 6♣ (matches rank) — turn passes back to p1
-    const result = applyPlay([{ rank: '6', suit: 'clubs' }], null, state);
-    // After advancing to p1, their declaration should be cleared
+    // p2 plays 6♣ (matches rank) — stays on p2 until advanceTurn
+    const intermediate = applyPlay([{ rank: '6', suit: 'clubs' }], null, state);
+    const result = advanceTurn(intermediate);
+    // After advancing back to p1, their declaration should be cleared
     expect(result.onCardsDeclarations).not.toContain('p1');
   });
 });
@@ -286,7 +329,7 @@ describe('timerStartedAt resets on turn advance', () => {
     expect(result.timerStartedAt).toBeNull();
   });
 
-  it('timerStartedAt is null after drawCard advances the turn', () => {
+  it('timerStartedAt is null after drawCard + advanceTurn', () => {
     const state = makeState({
       timerStartedAt: 1700000000000,
       deck: [{ rank: '3', suit: 'clubs' }],
@@ -295,7 +338,8 @@ describe('timerStartedAt resets on turn advance', () => {
         makePlayer('p2', []),
       ],
     });
-    const result = drawCard(1, state);
+    const drawn = drawCard(1, state);
+    const result = advanceTurn(drawn);
     expect(result.timerStartedAt).toBeNull();
   });
 

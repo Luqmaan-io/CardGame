@@ -14,7 +14,6 @@ import {
 import { useRouter } from 'expo-router';
 import { useSocket } from '../hooks/useSocket';
 import { useGameStore } from '../store/gameStore';
-
 // Subtle animated waiting indicator — three dots that cycle 1→2→3→1
 function PulsingDots() {
   const [step, setStep] = useState(0);
@@ -26,20 +25,27 @@ function PulsingDots() {
   return <Text style={styles.pulsingDots}>{dots}</Text>;
 }
 
+type Mode = 'none' | 'online' | 'ai';
+
 export default function HomeScreen() {
   const router = useRouter();
   const { createRoom, joinRoom, startGame } = useSocket();
   const { setPlayerName, roomId, roomInfo, myPlayerId, gameState, error, setError } =
     useGameStore();
+  // Mode selector
+  const [mode, setMode] = useState<Mode>('none');
 
-  // Each card manages its own name field so the two flows are independent
+  // Online flow state
   const [createName, setCreateName] = useState('');
   const [joinName, setJoinName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [maxPlayers, setMaxPlayers] = useState<2 | 3 | 4>(4);
-  // Track which card last triggered an action so errors appear in the right place
   const [lastAction, setLastAction] = useState<'create' | 'join' | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // AI flow state
+  const [aiName, setAiName] = useState('');
+  const [aiCount, setAiCount] = useState<1 | 2 | 3>(1);
 
   const { width } = useWindowDimensions();
   const wide = width >= 640;
@@ -84,12 +90,21 @@ export default function HomeScreen() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function handleStartAI() {
+    if (!aiName.trim()) return;
+    router.replace({
+      pathname: '/game',
+      params: { mode: 'local', playerName: aiName.trim(), aiCount: String(aiCount) },
+    });
+  }
+
   const isHost = roomInfo?.players[0]?.playerId === myPlayerId;
   const canStart = isHost && (roomInfo?.players.length ?? 0) >= 2;
   const createError = lastAction === 'create' ? error : null;
   const joinError = lastAction === 'join' ? error : null;
   const canCreate = createName.trim().length > 0;
   const canJoin = joinName.trim().length > 0 && joinCode.trim().length > 0;
+  const canStartAI = aiName.trim().length > 0;
 
   // ── Waiting room (after create or join) ────────────────────────────────
   if (roomId) {
@@ -158,7 +173,7 @@ export default function HomeScreen() {
     );
   }
 
-  // ── Lobby (two-card layout) ────────────────────────────────────────────
+  // ── Lobby ─────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView
@@ -167,35 +182,54 @@ export default function HomeScreen() {
       >
         <Text style={styles.title}>Card Game</Text>
 
-        <View style={[styles.cardsRow, wide && styles.cardsRowWide]}>
+        {/* ── Mode selector ── */}
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === 'online' && styles.modeBtnActive]}
+            onPress={() => setMode(mode === 'online' ? 'none' : 'online')}
+          >
+            <Text style={[styles.modeBtnText, mode === 'online' && styles.modeBtnTextActive]}>
+              Play Online
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === 'ai' && styles.modeBtnActive]}
+            onPress={() => setMode(mode === 'ai' ? 'none' : 'ai')}
+          >
+            <Text style={[styles.modeBtnText, mode === 'ai' && styles.modeBtnTextActive]}>
+              Play vs AI
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-          {/* ── Create a room card ── */}
-          <View style={[styles.card, wide && styles.cardHalf]}>
-            <Text style={styles.cardHeading}>Create a room</Text>
+        {/* ── AI setup section ── */}
+        {mode === 'ai' && (
+          <View style={styles.card}>
+            <Text style={styles.cardHeading}>Play vs AI</Text>
 
             <Text style={styles.inputLabel}>Your name</Text>
             <TextInput
               style={styles.input}
-              value={createName}
-              onChangeText={setCreateName}
+              value={aiName}
+              onChangeText={setAiName}
               placeholder="Enter your name"
               placeholderTextColor="#757575"
               maxLength={20}
               returnKeyType="done"
             />
 
-            <Text style={styles.inputLabel}>Players</Text>
+            <Text style={styles.inputLabel}>Opponents</Text>
             <View style={styles.playerCountRow}>
-              {([2, 3, 4] as const).map((n) => (
+              {([1, 2, 3] as const).map((n) => (
                 <TouchableOpacity
                   key={n}
-                  style={[styles.countBtn, maxPlayers === n && styles.countBtnActive]}
-                  onPress={() => setMaxPlayers(n)}
+                  style={[styles.countBtn, aiCount === n && styles.countBtnActive]}
+                  onPress={() => setAiCount(n)}
                 >
                   <Text
                     style={[
                       styles.countBtnText,
-                      maxPlayers === n && styles.countBtnTextActive,
+                      aiCount === n && styles.countBtnTextActive,
                     ]}
                   >
                     {n}
@@ -205,79 +239,131 @@ export default function HomeScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.primaryBtn, !canCreate && styles.btnDisabled]}
-              onPress={handleCreate}
-              disabled={!canCreate}
+              style={[styles.primaryBtn, !canStartAI && styles.btnDisabled]}
+              onPress={handleStartAI}
+              disabled={!canStartAI}
             >
-              <Text
-                style={[styles.primaryBtnText, !canCreate && styles.btnDisabledText]}
-              >
-                Create Room
+              <Text style={[styles.primaryBtnText, !canStartAI && styles.btnDisabledText]}>
+                Start Game
               </Text>
             </TouchableOpacity>
-
-            {createError ? (
-              <Text style={styles.inlineError}>{createError}</Text>
-            ) : null}
           </View>
+        )}
 
-          {/* ── Divider ── */}
-          {wide ? (
-            <View style={styles.verticalDivider} />
-          ) : (
-            <View style={styles.horizontalDivider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerOr}>or</Text>
-              <View style={styles.dividerLine} />
+        {/* ── Online section ── */}
+        {mode === 'online' && (
+          <View style={[styles.cardsRow, wide && styles.cardsRowWide]}>
+
+            {/* ── Create a room card ── */}
+            <View style={[styles.card, wide && styles.cardHalf]}>
+              <Text style={styles.cardHeading}>Create a room</Text>
+
+              <Text style={styles.inputLabel}>Your name</Text>
+              <TextInput
+                style={styles.input}
+                value={createName}
+                onChangeText={setCreateName}
+                placeholder="Enter your name"
+                placeholderTextColor="#757575"
+                maxLength={20}
+                returnKeyType="done"
+              />
+
+              <Text style={styles.inputLabel}>Players</Text>
+              <View style={styles.playerCountRow}>
+                {([2, 3, 4] as const).map((n) => (
+                  <TouchableOpacity
+                    key={n}
+                    style={[styles.countBtn, maxPlayers === n && styles.countBtnActive]}
+                    onPress={() => setMaxPlayers(n)}
+                  >
+                    <Text
+                      style={[
+                        styles.countBtnText,
+                        maxPlayers === n && styles.countBtnTextActive,
+                      ]}
+                    >
+                      {n}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, !canCreate && styles.btnDisabled]}
+                onPress={handleCreate}
+                disabled={!canCreate}
+              >
+                <Text
+                  style={[styles.primaryBtnText, !canCreate && styles.btnDisabledText]}
+                >
+                  Create Room
+                </Text>
+              </TouchableOpacity>
+
+              {createError ? (
+                <Text style={styles.inlineError}>{createError}</Text>
+              ) : null}
             </View>
-          )}
 
-          {/* ── Join a room card ── */}
-          <View style={[styles.card, wide && styles.cardHalf]}>
-            <Text style={styles.cardHeading}>Join a room</Text>
+            {/* ── Divider ── */}
+            {wide ? (
+              <View style={styles.verticalDivider} />
+            ) : (
+              <View style={styles.horizontalDivider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerOr}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            )}
 
-            <Text style={styles.inputLabel}>Your name</Text>
-            <TextInput
-              style={styles.input}
-              value={joinName}
-              onChangeText={setJoinName}
-              placeholder="Enter your name"
-              placeholderTextColor="#757575"
-              maxLength={20}
-              returnKeyType="next"
-            />
+            {/* ── Join a room card ── */}
+            <View style={[styles.card, wide && styles.cardHalf]}>
+              <Text style={styles.cardHeading}>Join a room</Text>
 
-            <Text style={styles.inputLabel}>Room code</Text>
-            <TextInput
-              style={[styles.input, styles.codeInput]}
-              value={joinCode}
-              onChangeText={(t) => setJoinCode(t.toUpperCase())}
-              placeholder="Enter 6-digit code"
-              placeholderTextColor="#757575"
-              autoCapitalize="characters"
-              maxLength={6}
-              returnKeyType="go"
-              onSubmitEditing={handleJoin}
-            />
+              <Text style={styles.inputLabel}>Your name</Text>
+              <TextInput
+                style={styles.input}
+                value={joinName}
+                onChangeText={setJoinName}
+                placeholder="Enter your name"
+                placeholderTextColor="#757575"
+                maxLength={20}
+                returnKeyType="next"
+              />
 
-            <TouchableOpacity
-              style={[styles.secondaryBtn, !canJoin && styles.btnDisabled]}
-              onPress={handleJoin}
-              disabled={!canJoin}
-            >
-              <Text
-                style={[styles.secondaryBtnText, !canJoin && styles.btnDisabledText]}
+              <Text style={styles.inputLabel}>Room code</Text>
+              <TextInput
+                style={[styles.input, styles.codeInput]}
+                value={joinCode}
+                onChangeText={(t) => setJoinCode(t.toUpperCase())}
+                placeholder="Enter 6-digit code"
+                placeholderTextColor="#757575"
+                autoCapitalize="characters"
+                maxLength={6}
+                returnKeyType="go"
+                onSubmitEditing={handleJoin}
+              />
+
+              <TouchableOpacity
+                style={[styles.secondaryBtn, !canJoin && styles.btnDisabled]}
+                onPress={handleJoin}
+                disabled={!canJoin}
               >
-                Join Room
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[styles.secondaryBtnText, !canJoin && styles.btnDisabledText]}
+                >
+                  Join Room
+                </Text>
+              </TouchableOpacity>
 
-            {joinError ? (
-              <Text style={styles.inlineError}>{joinError}</Text>
-            ) : null}
+              {joinError ? (
+                <Text style={styles.inlineError}>{joinError}</Text>
+              ) : null}
+            </View>
+
           </View>
-
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -297,6 +383,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
     marginBottom: 32,
+  },
+
+  // ── Mode selector ─────────────────────────────────────────
+  modeRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 18,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#2a2a2a',
+    backgroundColor: '#1e1e1e',
+    alignItems: 'center',
+  },
+  modeBtnActive: {
+    backgroundColor: '#1b3a1f',
+    borderColor: '#2e7d32',
+  },
+  modeBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#616161',
+  },
+  modeBtnTextActive: {
+    color: '#4caf50',
   },
 
   // ── Lobby layout ──────────────────────────────────────────
@@ -412,7 +526,7 @@ const styles = StyleSheet.create({
   btnDisabled: {
     backgroundColor: '#2a2a2a',
     borderColor: '#3a3a3a',
-    opacity: 1, // keep full opacity so it's clearly grey, not just faded
+    opacity: 1,
   },
   btnDisabledText: {
     color: '#505050',

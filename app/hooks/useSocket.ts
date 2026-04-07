@@ -68,6 +68,20 @@ export function useSocket() {
         setPendingTimeoutNotification(text);
       }
     );
+
+    newSocket.on(
+      'game:on-cards-declared',
+      ({ playerName }: { playerId: string; playerName: string }) => {
+        setPendingTimeoutNotification(`${playerName} is on cards!`);
+      }
+    );
+
+    newSocket.on(
+      'game:false-declaration',
+      ({ cardsDrawn }: { cardsDrawn: number }) => {
+        setPendingTimeoutNotification(`You're not on cards — ${cardsDrawn} cards added to your hand`);
+      }
+    );
   }, []);
 
   function playCards(cards: Card[], declaredSuit?: Suit) {
@@ -105,5 +119,10 @@ export function useSocket() {
     s?.emit('game:declare-on-cards', { roomId });
   }
 
-  return { playCards, drawCard, createRoom, joinRoom, startGame, declareSuit, declareOnCards };
+  function endTurn() {
+    const { socket: s, roomId } = useGameStore.getState();
+    s?.emit('game:end-turn', { roomId });
+  }
+
+  return { playCards, drawCard, createRoom, joinRoom, startGame, declareSuit, declareOnCards, endTurn };
 }

@@ -32,6 +32,7 @@ export interface GameState {
   timeoutStrikes: Record<string, number>;
   sessionScores: Record<string, number>;
   onCardsDeclarations: string[];
+  currentPlayerHasActed: boolean; // true after the current player has played or drawn this turn
 }
 
 export const POWER_CARDS: Rank[] = ['A', '2', '8', 'J', 'Q', 'K'];

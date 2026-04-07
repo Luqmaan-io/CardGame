@@ -18,6 +18,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     timeoutStrikes: {},
     sessionScores: {},
     onCardsDeclarations: [],
+    currentPlayerHasActed: false,
     ...overrides,
   };
 }

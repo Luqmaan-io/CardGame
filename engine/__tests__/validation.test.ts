@@ -1,5 +1,6 @@
 import { isValidPlay, isValidCombo } from '../validation';
 import { Card, GameState, Player } from '../types';
+// canWinNextTurn tested in on-cards.test.ts
 
 function makePlayer(id: string, hand: Card[]): Player {
   return { id, hand, isHuman: false };
@@ -22,6 +23,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     timeoutStrikes: {},
     sessionScores: {},
     onCardsDeclarations: [],
+    currentPlayerHasActed: false,
     ...overrides,
   };
 }

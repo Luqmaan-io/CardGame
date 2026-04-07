@@ -1,4 +1,4 @@
-import { applyPlay, getNextPlayerIndex, checkWinCondition, drawCard } from '../state';
+import { applyPlay, advanceTurn, getNextPlayerIndex, checkWinCondition, drawCard } from '../state';
 import { Card, GameState, Player } from '../types';
 
 function makePlayer(id: string, hand: Card[], isHuman = false): Player {
@@ -22,6 +22,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     timeoutStrikes: {},
     sessionScores: {},
     onCardsDeclarations: [],
+    currentPlayerHasActed: false,
     ...overrides,
   };
 }
@@ -273,9 +274,10 @@ describe('applyPlay — 8 skip behaviour', () => {
       { rank: '8', suit: 'diamonds' },
       { rank: '8', suit: 'clubs' },
     ];
-    const result = applyPlay(combo, null, state);
-    // After advancing, skipsRemaining should be consumed (0 in the new state)
-    // and currentPlayerIndex should have skipped 2 players: p1→skip p2→skip p3→land p4
+    // applyPlay stays on current player; advanceTurn applies skips
+    const intermediate = applyPlay(combo, null, state);
+    const result = advanceTurn(intermediate);
+    // p1→skip p2→skip p3→land p4
     expect(result.currentPlayerIndex).toBe(3); // p4 (index 3)
   });
 
@@ -293,8 +295,10 @@ describe('applyPlay — 8 skip behaviour', () => {
       ],
       currentPlayerIndex: 1,
     });
-    const result = applyPlay([{ rank: '8', suit: 'clubs' }], null, state);
-    // p2 plays 8 → resets skip → skipsRemaining becomes 1 (fresh) → only p3 misses → p4's turn
+    // applyPlay resets skipsRemaining to 0, applies 8 effect (+1), stays on p2
+    const intermediate = applyPlay([{ rank: '8', suit: 'clubs' }], null, state);
+    const result = advanceTurn(intermediate);
+    // p2 plays 8 → skipsRemaining=1 → only p3 misses → p4's turn
     expect(result.currentPlayerIndex).toBe(3); // p4
   });
 });

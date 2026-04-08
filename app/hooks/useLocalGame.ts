@@ -127,7 +127,8 @@ export function useLocalGame() {
       const move = pickAIMove(currentState);
 
       if (move === 'draw') {
-        actedState = engineDrawCard(1, currentState);
+        const drawCount = currentState.pendingPickup > 0 ? currentState.pendingPickup : 1;
+        actedState = engineDrawCard(drawCount, currentState);
       } else {
         const cards = move as Card[];
         const lastCard = cards[cards.length - 1]!;
@@ -139,7 +140,8 @@ export function useLocalGame() {
       }
     } catch {
       // Fallback: if something goes wrong, just draw
-      actedState = engineDrawCard(1, currentState);
+      const drawCount = currentState.pendingPickup > 0 ? currentState.pendingPickup : 1;
+      actedState = engineDrawCard(drawCount, currentState);
     }
 
     // AI never declares — advance turn immediately
@@ -228,7 +230,8 @@ export function useLocalGame() {
     const state = stateRef.current;
     if (!state) return;
 
-    const actedState = engineDrawCard(1, state);
+    const drawCount = state.pendingPickup > 0 ? state.pendingPickup : 1;
+    const actedState = engineDrawCard(drawCount, state);
     stateRef.current = actedState;
     setGameState(actedState);
     // Stay on player's turn — wait for humanEndTurn or humanDeclareOnCards

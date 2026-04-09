@@ -2,23 +2,64 @@ import { useEffect } from 'react';
 import { io } from 'socket.io-client';
 import type { Card, Suit } from '../../engine/types';
 import { useGameStore, RoomInfo } from '../store/gameStore';
-
-// Change this to your machine's local IP when testing on a physical device
-// e.g. 'http://192.168.1.100:3001'
-const SERVER_URL = 'http://localhost:3001';
+import { SERVER_URL } from '../config';
 
 export function useSocket() {
-  const { socket, setSocket, setGameState, setRoom, setRoomInfo, setError, setPendingTimeoutNotification } =
-    useGameStore();
+  const {
+    socket,
+    setSocket,
+    setGameState,
+    setRoom,
+    setRoomInfo,
+    setError,
+    setPendingTimeoutNotification,
+    setConnectionState,
+    connectionState,
+  } = useGameStore();
 
   useEffect(() => {
     // Only create the socket once — reuse if already connected
     const existing = useGameStore.getState().socket;
     if (existing) return;
 
-    const newSocket = io(SERVER_URL, { transports: ['websocket'] });
+    const newSocket = io(SERVER_URL, {
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
     setSocket(newSocket);
 
+    // ── Connection state tracking ──────────────────────────────────────────────
+    // 'connect' fires on initial connect AND after every successful reconnect.
+    newSocket.on('connect', () => {
+      useGameStore.getState().setConnectionState('connected');
+    });
+
+    newSocket.on('disconnect', () => {
+      useGameStore.getState().setConnectionState('disconnected');
+    });
+
+    newSocket.on('connect_error', () => {
+      useGameStore.getState().setConnectionState('disconnected');
+    });
+
+    // Manager-level events for reconnection lifecycle (socket.io v4 API).
+    newSocket.io.on('reconnect_attempt', () => {
+      useGameStore.getState().setConnectionState('reconnecting');
+    });
+
+    newSocket.io.on('reconnect', () => {
+      // 'connect' will also fire, but emit room:rejoin here while the reconnect
+      // context is clear — before 'connect' handlers run.
+      const { roomId, myPlayerId } = useGameStore.getState();
+      if (roomId && myPlayerId) {
+        newSocket.emit('room:rejoin', { roomId, playerId: myPlayerId });
+      }
+    });
+
+    // ── Game events ────────────────────────────────────────────────────────────
     newSocket.on('game:state', ({ state }: { state: Parameters<typeof setGameState>[0] }) => {
       setGameState(state);
     });
@@ -50,6 +91,10 @@ export function useSocket() {
       }
     );
 
+    newSocket.on('room:rejoined', () => {
+      useGameStore.getState().setPendingTimeoutNotification('Reconnected to game');
+    });
+
     newSocket.on('game:error', ({ message }: { message: string }) => {
       setError(message);
     });
@@ -80,6 +125,13 @@ export function useSocket() {
       'game:false-declaration',
       ({ cardsDrawn }: { cardsDrawn: number }) => {
         setPendingTimeoutNotification(`You're not on cards — ${cardsDrawn} cards added to your hand`);
+      }
+    );
+
+    newSocket.on(
+      'game:player-disconnected',
+      ({ playerName }: { playerId: string; playerName: string }) => {
+        setPendingTimeoutNotification(`${playerName} lost connection — waiting for them to return…`);
       }
     );
   }, []);
@@ -124,5 +176,15 @@ export function useSocket() {
     s?.emit('game:end-turn', { roomId });
   }
 
-  return { playCards, drawCard, createRoom, joinRoom, startGame, declareSuit, declareOnCards, endTurn };
+  return {
+    playCards,
+    drawCard,
+    createRoom,
+    joinRoom,
+    startGame,
+    declareSuit,
+    declareOnCards,
+    endTurn,
+    connectionState,
+  };
 }

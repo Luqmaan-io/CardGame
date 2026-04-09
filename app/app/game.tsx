@@ -19,7 +19,9 @@ import { AnimationOverlay, AnimationOverlayHandle, animId } from '../components/
 import { useSounds } from '../hooks/useSounds';
 import { useHaptics } from '../hooks/useHaptics';
 import { getGamePositions } from '../utils/animations';
+import { measurePosition, centreOf } from '../utils/measurePosition';
 import { getValidPlays } from '../../engine/ai';
+import { isValidPlay } from '../../engine/validation';
 import type { Card, GameState, Suit } from '../../engine/types';
 
 // ─── Power card ranks ─────────────────────────────────────────────────────────
@@ -57,6 +59,7 @@ export default function GameScreen() {
     declareSuit: socketDeclareSuit,
     declareOnCards: socketDeclareOnCards,
     endTurn: socketEndTurn,
+    connectionState,
   } = useSocket();
   const {
     gameState: onlineGameState,
@@ -74,11 +77,13 @@ export default function GameScreen() {
     myPlayerId: localMyPlayerId,
     isAIThinking,
     playerNames: localPlayerNames,
+    turnStartedAt: localTurnStartedAt,
     startLocalGame,
     humanPlay,
     humanDraw,
     humanEndTurn,
     humanDeclareOnCards,
+    humanApplyTimeout,
   } = useLocalGame();
 
   // Pick active game data based on mode
@@ -101,8 +106,30 @@ export default function GameScreen() {
   // ── Animation overlay ref ─────────────────────────────────────────────────
   const overlayRef = useRef<AnimationOverlayHandle>(null);
 
+  // ── Pixel-accurate layout refs ────────────────────────────────────────────
+  const drawPileRef = useRef<View>(null);
+  const discardPileRef = useRef<View>(null);
+  const humanHandRef = useRef<View>(null);
+  const opponentRefs = useRef<Record<string, View | null>>({});
+
   // ── Flashing player (timeout animation) ──────────────────────────────────
   const [flashingPlayerId, setFlashingPlayerId] = useState<string | null>(null);
+
+  // ── On-cards declaration window (Fix 2) ────────────────────────────────────
+  const [showOnCardsWindow, setShowOnCardsWindow] = useState(false);
+  const [onCardsCountdown, setOnCardsCountdown] = useState(3);
+  const onCardsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCardsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Auto-draw countdown (Fix 3) ───────────────────────────────────────────
+  const [autoDrawCountdown, setAutoDrawCountdown] = useState<number | null>(null);
+  const autoDrawTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Set true when we initiate auto-draw for the current turn; prevents re-trigger
+  const autoDrawInitiatedRef = useRef(false);
+  // Set true if the player explicitly cancels; prevents re-trigger after cancel
+  const autoDrawCancelledRef = useRef(false);
+  // Set true after a draw action to trigger auto-advance in online mode
+  const pendingAutoAdvanceAfterDrawRef = useRef(false);
 
   // ── Track previous game state for detecting mid-game changes ─────────────
   // Not updated during the deal sequence — only armed after deal completes.
@@ -116,6 +143,52 @@ export default function GameScreen() {
   function addToast(text: string) {
     const id = ++toastIdRef.current;
     setToasts((prev) => [...prev, { id, text }]);
+  }
+
+  // ── On-cards window helpers ───────────────────────────────────────────────
+
+  function advanceTurnFn() {
+    if (isLocalMode) {
+      humanEndTurn();
+    } else {
+      socketEndTurn();
+    }
+  }
+
+  function closeOnCardsWindow() {
+    setShowOnCardsWindow(false);
+    if (onCardsTimerRef.current) { clearTimeout(onCardsTimerRef.current); onCardsTimerRef.current = null; }
+    if (onCardsIntervalRef.current) { clearInterval(onCardsIntervalRef.current); onCardsIntervalRef.current = null; }
+  }
+
+  function startOnCardsWindow() {
+    // Guard: only open if still my turn and acted
+    const state = isLocalMode ? localGameState : onlineGameState;
+    if (!state) return;
+    const current = state.players[state.currentPlayerIndex];
+    const isMine = current?.id === (isLocalMode ? localMyPlayerId : onlineMyPlayerId);
+    if (!isMine || !state.currentPlayerHasActed) return;
+    if (state.phase === 'declare-suit') return;
+
+    setShowOnCardsWindow(true);
+    setOnCardsCountdown(3);
+
+    onCardsIntervalRef.current = setInterval(() => {
+      setOnCardsCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    onCardsTimerRef.current = setTimeout(() => {
+      closeOnCardsWindow();
+      advanceTurnFn();
+    }, 3100); // 3.1s gives the interval a final tick at 0
+  }
+
+  // ── Auto-draw helpers ─────────────────────────────────────────────────────
+
+  function cancelAutoDraw() {
+    autoDrawCancelledRef.current = true;
+    setAutoDrawCountdown(null);
+    if (autoDrawTimerRef.current) { clearInterval(autoDrawTimerRef.current); autoDrawTimerRef.current = null; }
   }
 
   // ── runDealSequence ───────────────────────────────────────────────────────
@@ -140,7 +213,27 @@ export default function GameScreen() {
     setDealtCardCounts({ ...initial });
     setIsDealing(true);
 
-    const positions = getGamePositions(screenWidth, screenHeight);
+    // Measure pixel-accurate positions (with fallback to screen-fraction estimates)
+    const fallback = getGamePositions(screenWidth, screenHeight);
+    const deckPos = await measurePosition(drawPileRef).catch(() => null);
+    const handPos = await measurePosition(humanHandRef).catch(() => null);
+
+    const deckOrigin = deckPos ? centreOf(deckPos) : fallback.deck;
+    const handTarget = handPos ? centreOf(handPos) : fallback.myHand;
+
+    // Pre-measure opponent positions
+    const oppTargets: Record<string, { x: number; y: number }> = {};
+    const opponents = state.players.filter((p) => p.id !== myPlayerId);
+    for (let i = 0; i < opponents.length; i++) {
+      const opp = opponents[i]!;
+      const oppRef = opponentRefs.current[opp.id];
+      if (oppRef) {
+        const pos = await measurePosition({ current: oppRef }).catch(() => null);
+        oppTargets[opp.id] = pos ? centreOf(pos) : fallback.opponent(i, opponents.length);
+      } else {
+        oppTargets[opp.id] = fallback.opponent(i, opponents.length);
+      }
+    }
 
     for (let cardNum = 1; cardNum <= totalCards; cardNum++) {
       for (let playerIdx = 0; playerIdx < playerCount; playerIdx++) {
@@ -151,22 +244,17 @@ export default function GameScreen() {
         const playerId = player.id;
         const isHuman = playerId === myPlayerId;
 
-        // Compute target position
-        const oppIdx = state.players
-          .filter((p) => p.id !== myPlayerId)
-          .findIndex((p) => p.id === playerId);
-
         const toPos = isHuman
-          ? positions.myHand
-          : positions.opponent(oppIdx, playerCount - 1);
+          ? handTarget
+          : (oppTargets[playerId] ?? fallback.opponent(0, opponents.length));
 
         // Add flying card to overlay
         overlayRef.current?.addCards([
           {
             id: animId(),
             card: isHuman ? (player.hand[cardNum - 1] ?? null) : null,
-            fromX: positions.deck.x,
-            fromY: positions.deck.y,
+            fromX: deckOrigin.x,
+            fromY: deckOrigin.y,
             toX: toPos.x,
             toY: toPos.y,
             delay: 0,
@@ -210,7 +298,7 @@ export default function GameScreen() {
     prevDiscardTopRef.current = discardTop ? `${discardTop.rank}-${discardTop.suit}` : null;
     prevPendingPickupRef.current = state.pendingPickup;
     gameEventsArmedRef.current = true;
-  }, [myPlayerId, screenWidth, screenHeight]);
+  }, [myPlayerId, screenWidth, screenHeight, drawPileRef, humanHandRef, opponentRefs]);
 
   // ── handleSkipDeal ────────────────────────────────────────────────────────
   function handleSkipDeal() {
@@ -291,7 +379,7 @@ export default function GameScreen() {
     if (!gameState) return;
     if (!gameEventsArmedRef.current) return;
 
-    const positions = getGamePositions(screenWidth, screenHeight);
+    const fallback = getGamePositions(screenWidth, screenHeight);
     const myPlayer = gameState.players.find((p) => p.id === myPlayerId);
     const opponents = gameState.players.filter((p) => p.id !== myPlayerId);
     const discardTop = gameState.discard[gameState.discard.length - 1];
@@ -314,20 +402,35 @@ export default function GameScreen() {
 
       if (justPlayedBy && justPlayedBy.id !== myPlayerId) {
         const oppIdx = opponents.findIndex((o) => o.id === justPlayedBy.id);
-        const oppPos = positions.opponent(oppIdx, opponents.length);
-        overlayRef.current?.addCards([
-          {
-            id: animId(),
-            card: null,
-            fromX: oppPos.x,
-            fromY: oppPos.y,
-            toX: positions.discard.x,
-            toY: positions.discard.y,
-            delay: 0,
-            duration: 400,
-            onComplete: undefined,
-          },
-        ]);
+        // Try measured position, fall back to screen fraction
+        const oppRef = opponentRefs.current[justPlayedBy.id];
+        const getOppPos = async () => {
+          if (oppRef) {
+            const pos = await measurePosition({ current: oppRef }).catch(() => null);
+            if (pos) return centreOf(pos);
+          }
+          return fallback.opponent(oppIdx, opponents.length);
+        };
+        const getDiscardPos = async () => {
+          const pos = await measurePosition(discardPileRef).catch(() => null);
+          return pos ? centreOf(pos) : fallback.discard;
+        };
+
+        Promise.all([getOppPos(), getDiscardPos()]).then(([fromPos, toPos]) => {
+          overlayRef.current?.addCards([
+            {
+              id: animId(),
+              card: null,
+              fromX: fromPos.x,
+              fromY: fromPos.y,
+              toX: toPos.x,
+              toY: toPos.y,
+              delay: 0,
+              duration: 400,
+              onComplete: undefined,
+            },
+          ]);
+        });
         playSound('card_slide');
         setTimeout(() => {
           if (discardTop && isPowerCard(discardTop)) {
@@ -346,19 +449,30 @@ export default function GameScreen() {
       myHandLength - prevHandLength === 1 &&
       prevPending === 0
     ) {
-      overlayRef.current?.addCards([
-        {
-          id: animId(),
-          card: myPlayer?.hand[myPlayer.hand.length - 1] ?? null,
-          fromX: positions.deck.x,
-          fromY: positions.deck.y,
-          toX: positions.myHand.x,
-          toY: positions.myHand.y,
-          delay: 0,
-          duration: 300,
-          onComplete: undefined,
-        },
-      ]);
+      const getDeckPos = async () => {
+        const pos = await measurePosition(drawPileRef).catch(() => null);
+        return pos ? centreOf(pos) : fallback.deck;
+      };
+      const getHandPos = async () => {
+        const pos = await measurePosition(humanHandRef).catch(() => null);
+        return pos ? centreOf(pos) : fallback.myHand;
+      };
+
+      Promise.all([getDeckPos(), getHandPos()]).then(([fromPos, toPos]) => {
+        overlayRef.current?.addCards([
+          {
+            id: animId(),
+            card: myPlayer?.hand[myPlayer.hand.length - 1] ?? null,
+            fromX: fromPos.x,
+            fromY: fromPos.y,
+            toX: toPos.x,
+            toY: toPos.y,
+            delay: 0,
+            duration: 300,
+            onComplete: undefined,
+          },
+        ]);
+      });
       playSound('card_draw');
     }
 
@@ -372,24 +486,36 @@ export default function GameScreen() {
       const count = myHandLength - prevHandLength;
       playSound('penalty');
       haptic('warning');
-      for (let i = 0; i < count; i++) {
-        overlayRef.current?.addCards([
-          {
-            id: animId(),
-            card: myPlayer?.hand[myPlayer.hand.length - count + i] ?? null,
-            fromX: positions.deck.x,
-            fromY: positions.deck.y,
-            toX: positions.myHand.x + (i - Math.floor(count / 2)) * 12,
-            toY: positions.myHand.y,
-            delay: i * 150,
-            duration: 300,
-            onComplete: undefined,
-          },
-        ]);
-        if (i > 0) {
-          setTimeout(() => playSound('card_draw'), i * 150);
+
+      const getDeckPos = async () => {
+        const pos = await measurePosition(drawPileRef).catch(() => null);
+        return pos ? centreOf(pos) : fallback.deck;
+      };
+      const getHandPos = async () => {
+        const pos = await measurePosition(humanHandRef).catch(() => null);
+        return pos ? centreOf(pos) : fallback.myHand;
+      };
+
+      Promise.all([getDeckPos(), getHandPos()]).then(([fromPos, toPos]) => {
+        for (let i = 0; i < count; i++) {
+          overlayRef.current?.addCards([
+            {
+              id: animId(),
+              card: myPlayer?.hand[myPlayer.hand.length - count + i] ?? null,
+              fromX: fromPos.x,
+              fromY: fromPos.y,
+              toX: toPos.x + (i - Math.floor(count / 2)) * 12,
+              toY: toPos.y,
+              delay: i * 150,
+              duration: 300,
+              onComplete: undefined,
+            },
+          ]);
+          if (i > 0) {
+            setTimeout(() => playSound('card_draw'), i * 150);
+          }
         }
-      }
+      });
     }
 
     // ── Timeout strikes ─────────────────────────────────────────────────────
@@ -431,6 +557,88 @@ export default function GameScreen() {
     }
   }, [gameState?.phase, gameState?.winnerId]);
 
+  // ── Close on-cards window + reset auto-draw when turn is no longer mine ──
+  useEffect(() => {
+    if (!gameState) return;
+    const current = gameState.players[gameState.currentPlayerIndex];
+    const isMine = current?.id === myPlayerId;
+    if (!isMine || gameState.phase === 'game-over') {
+      closeOnCardsWindow();
+      cancelAutoDraw();
+      autoDrawInitiatedRef.current = false;
+      autoDrawCancelledRef.current = false;
+      pendingAutoAdvanceAfterDrawRef.current = false;
+    }
+  }, [gameState?.currentPlayerIndex, gameState?.phase]);
+
+  // ── Online mode: auto-advance turn after draw card ────────────────────────
+  useEffect(() => {
+    if (isLocalMode) return;
+    if (!gameState) return;
+    if (!pendingAutoAdvanceAfterDrawRef.current) return;
+    const current = gameState.players[gameState.currentPlayerIndex];
+    if (current?.id !== myPlayerId) return;
+    if (!gameState.currentPlayerHasActed) return;
+
+    pendingAutoAdvanceAfterDrawRef.current = false;
+    // Small delay so the draw animation completes before advancing
+    const id = setTimeout(() => socketEndTurn(), 400);
+    return () => clearTimeout(id);
+  }, [gameState?.currentPlayerHasActed, gameState?.currentPlayerIndex, isLocalMode]);
+
+  // ── Auto-draw detection: my turn + penalty + no counter ──────────────────
+  useEffect(() => {
+    if (!gameState || !gameEventsArmedRef.current || isDealing) return;
+    const current = gameState.players[gameState.currentPlayerIndex];
+    const isMine = current?.id === myPlayerId;
+
+    if (!isMine || gameState.pendingPickup === 0) {
+      autoDrawInitiatedRef.current = false;
+      autoDrawCancelledRef.current = false;
+      return;
+    }
+    if (gameState.currentPlayerHasActed) return; // already acted this turn
+    if (autoDrawInitiatedRef.current) return;
+    if (autoDrawCancelledRef.current) return;
+
+    const myPlayer = gameState.players.find((p) => p.id === myPlayerId);
+    const hasCounter = myPlayer?.hand.some((card) => isValidPlay(card, gameState)) ?? false;
+
+    if (!hasCounter) {
+      autoDrawInitiatedRef.current = true;
+      setAutoDrawCountdown(3);
+      let count = 3;
+      const interval = setInterval(() => {
+        count--;
+        setAutoDrawCountdown(count);
+        if (count <= 0) {
+          clearInterval(interval);
+          autoDrawTimerRef.current = null;
+          setAutoDrawCountdown(null);
+          handleDrawFn();
+        }
+      }, 1000);
+      autoDrawTimerRef.current = interval;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.currentPlayerIndex, gameState?.pendingPickup, isDealing]);
+
+  // ── Local mode: fire humanApplyTimeout when 30s expires ──────────────────
+  useEffect(() => {
+    if (!isLocalMode) return;
+    if (!gameState || gameState.phase === 'game-over') return;
+    if (!gameEventsArmedRef.current || isDealing) return;
+    const current = gameState.players[gameState.currentPlayerIndex];
+    if (!current || current.id !== myPlayerId) return;
+    if (!localTurnStartedAt) return;
+
+    const elapsed = Date.now() - localTurnStartedAt;
+    const remaining = Math.max(0, 30000 - elapsed);
+
+    const id = setTimeout(() => humanApplyTimeout(), remaining);
+    return () => clearTimeout(id);
+  }, [isLocalMode, isDealing, localTurnStartedAt, gameState?.phase]);
+
   // ── Early return: no game state yet ──────────────────────────────────────
   if (!gameState) {
     return (
@@ -462,7 +670,7 @@ export default function GameScreen() {
       return `${aiName} is thinking…`;
     }
     if (gameState!.phase === 'declare-suit') return 'Choose a suit';
-    if (isMyTurn && hasActed) return 'End your turn or declare';
+    if (isMyTurn && hasActed) return '';
     if (!isMyTurn) {
       if (isLocalMode) {
         return `${localPlayerNames[currentPlayer?.id ?? ''] ?? 'AI'}'s turn`;
@@ -491,7 +699,7 @@ export default function GameScreen() {
     }
   }
 
-  function handlePlay() {
+  async function handlePlay() {
     if (selectedCards.length === 0) return;
 
     const lastCard = selectedCards[selectedCards.length - 1];
@@ -508,16 +716,23 @@ export default function GameScreen() {
     }
     haptic('medium');
 
-    const positions = getGamePositions(screenWidth, screenHeight);
-    selectedCards.forEach((card, i) => {
+    // Measure hand + discard positions for pixel-accurate fly animation
+    const fallback = getGamePositions(screenWidth, screenHeight);
+    const handPos = await measurePosition(humanHandRef).catch(() => null);
+    const discardPos = await measurePosition(discardPileRef).catch(() => null);
+    const from = handPos ? centreOf(handPos) : fallback.myHand;
+    const to = discardPos ? centreOf(discardPos) : fallback.discard;
+
+    const cards = selectedCards.slice(); // capture before clearSelection
+    cards.forEach((card, i) => {
       overlayRef.current?.addCards([
         {
           id: animId(),
           card,
-          fromX: positions.myHand.x + (i - Math.floor(selectedCards.length / 2)) * 40,
-          fromY: positions.myHand.y,
-          toX: positions.discard.x,
-          toY: positions.discard.y,
+          fromX: from.x + (i - Math.floor(cards.length / 2)) * 40,
+          fromY: from.y,
+          toX: to.x,
+          toY: to.y,
           delay: i * 100,
           duration: 350,
           onComplete: undefined,
@@ -526,28 +741,36 @@ export default function GameScreen() {
     });
 
     if (isLocalMode) {
-      try { humanPlay(selectedCards); } catch { /* invalid */ }
+      try { humanPlay(cards); } catch { /* invalid */ }
     } else {
-      socketPlayCards(selectedCards);
+      socketPlayCards(cards);
     }
     clearSelection();
+    // Open on-cards window after card animation (~350ms)
+    setTimeout(() => startOnCardsWindow(), 420);
   }
 
-  function handleSuitSelected(suit: Suit) {
+  async function handleSuitSelected(suit: Suit) {
     setShowSuitPicker(false);
     playSound('power_card');
     haptic('medium');
 
-    const positions = getGamePositions(screenWidth, screenHeight);
-    selectedCards.forEach((card, i) => {
+    const fallback = getGamePositions(screenWidth, screenHeight);
+    const handPos = await measurePosition(humanHandRef).catch(() => null);
+    const discardPos = await measurePosition(discardPileRef).catch(() => null);
+    const from = handPos ? centreOf(handPos) : fallback.myHand;
+    const to = discardPos ? centreOf(discardPos) : fallback.discard;
+
+    const cards = selectedCards.slice(); // capture before clearSelection
+    cards.forEach((card, i) => {
       overlayRef.current?.addCards([
         {
           id: animId(),
           card,
-          fromX: positions.myHand.x + (i - Math.floor(selectedCards.length / 2)) * 40,
-          fromY: positions.myHand.y,
-          toX: positions.discard.x,
-          toY: positions.discard.y,
+          fromX: from.x + (i - Math.floor(cards.length / 2)) * 40,
+          fromY: from.y,
+          toX: to.x,
+          toY: to.y,
           delay: i * 100,
           duration: 350,
           onComplete: undefined,
@@ -556,29 +779,31 @@ export default function GameScreen() {
     });
 
     if (isLocalMode) {
-      try { humanPlay(selectedCards, suit); } catch { /* invalid */ }
+      try { humanPlay(cards, suit); } catch { /* invalid */ }
     } else {
-      socketPlayCards(selectedCards, suit);
+      socketPlayCards(cards, suit);
+    }
+    clearSelection();
+    // Open on-cards window after card animation (~350ms)
+    setTimeout(() => startOnCardsWindow(), 420);
+  }
+
+  // handleDrawFn is the underlying draw — also used by auto-draw countdown
+  function handleDrawFn() {
+    haptic('light');
+    if (isLocalMode) {
+      humanDraw();
+      // Auto-advance turn after draw animation
+      setTimeout(() => humanEndTurn(), 450);
+    } else {
+      socketDrawCard();
+      pendingAutoAdvanceAfterDrawRef.current = true;
     }
     clearSelection();
   }
 
   function handleDraw() {
-    haptic('light');
-    if (isLocalMode) {
-      humanDraw();
-    } else {
-      socketDrawCard();
-    }
-    clearSelection();
-  }
-
-  function handleEndTurn() {
-    if (isLocalMode) {
-      humanEndTurn();
-    } else {
-      socketEndTurn();
-    }
+    handleDrawFn();
   }
 
   function handleDeclareSuit(suit: Suit) {
@@ -595,27 +820,28 @@ export default function GameScreen() {
   }
 
   function handleDeclareOnCards() {
+    closeOnCardsWindow();
+    playSound('on_cards');
+    haptic('success');
     if (isLocalMode) {
-      const isValid = humanDeclareOnCards();
+      const isValid = humanDeclareOnCards(); // advances turn internally
       if (isValid) {
         const humanName = localPlayerNames[localMyPlayerId] ?? 'You';
         addToast(`${humanName} is on cards!`);
-        playSound('on_cards');
-        haptic('success');
       } else {
         addToast("You're not on cards — 2 cards added to your hand");
         haptic('error');
       }
     } else {
-      socketDeclareOnCards();
+      socketDeclareOnCards(); // server declares + advances turn
     }
   }
 
   const onCardsActive = gameState.onCardsDeclarations.includes(myPlayerId);
   const showPreAction =
     isMyTurn && !hasActed && !isAIThinking && !isDealing && gameState.phase !== 'declare-suit';
-  const showPostAction =
-    isMyTurn && hasActed && !isAIThinking && !isDealing && gameState.phase !== 'declare-suit';
+  // timerStartedAt: local mode uses hook-tracked time; online uses server-stamped time
+  const timerStartedAt = isLocalMode ? localTurnStartedAt : gameState.timerStartedAt;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -651,13 +877,22 @@ export default function GameScreen() {
         isDealing={isDealing}
         dealtCardCounts={dealtCardCounts ?? undefined}
         deckCountOverride={deckCountOverride}
+        drawPileRef={drawPileRef}
+        discardPileRef={discardPileRef}
+        humanHandRef={humanHandRef}
+        opponentRefs={opponentRefs}
+        isReconnecting={!isLocalMode && (connectionState === 'disconnected' || connectionState === 'reconnecting')}
+        onReconnectTimeout={() => {
+          useGameStore.getState().setError('You were removed from the game');
+          router.replace('/');
+        }}
       />
 
       <AnimationOverlay ref={overlayRef} />
 
-      {/* Timer — hidden in local mode and during deal */}
-      {!isLocalMode && !isDealing && (
-        <TurnTimer timerStartedAt={gameState.timerStartedAt} />
+      {/* Timer — shown in all game modes, hidden during deal */}
+      {!isDealing && (
+        <TurnTimer timerStartedAt={timerStartedAt} />
       )}
 
       {showPreAction && (
@@ -678,21 +913,44 @@ export default function GameScreen() {
         </View>
       )}
 
-      {showPostAction && (
-        <View style={styles.postActionBar}>
-          {!onCardsActive && (
-            <TouchableOpacity style={styles.onCardsBtn} onPress={handleDeclareOnCards}>
-              <Text style={styles.onCardsBtnText}>I'm on cards!</Text>
-            </TouchableOpacity>
-          )}
-          {onCardsActive && (
-            <View style={styles.declaredBadge}>
-              <Text style={styles.declaredBadgeText}>Declared!</Text>
+      {/* ── On-cards declaration window ───────────────────────────────── */}
+      {showOnCardsWindow && (
+        <View style={styles.onCardsOverlay}>
+          <View style={styles.onCardsCard}>
+            <Text style={styles.onCardsHandCount}>
+              You have {gameState.players.find((p) => p.id === myPlayerId)?.hand.length ?? 0} card{(gameState.players.find((p) => p.id === myPlayerId)?.hand.length ?? 0) !== 1 ? 's' : ''} left
+            </Text>
+            {!onCardsActive ? (
+              <TouchableOpacity style={styles.onCardsBigBtn} onPress={handleDeclareOnCards}>
+                <Text style={styles.onCardsBigBtnText}>I'm on cards!</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.declaredBadge}>
+                <Text style={styles.declaredBadgeText}>Already declared!</Text>
+              </View>
+            )}
+            {/* Countdown bar */}
+            <View style={styles.countdownTrack}>
+              <View style={[styles.countdownFill, { flex: onCardsCountdown / 3 }]} />
+              <View style={{ flex: (3 - onCardsCountdown) / 3 }} />
             </View>
-          )}
-          <TouchableOpacity style={styles.endTurnBtn} onPress={handleEndTurn}>
-            <Text style={styles.endTurnBtnText}>End Turn</Text>
-          </TouchableOpacity>
+            <Text style={styles.countdownLabel}>{onCardsCountdown}s</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ── Auto-draw countdown overlay ───────────────────────────────── */}
+      {autoDrawCountdown !== null && (
+        <View style={styles.autoDrawOverlay}>
+          <View style={styles.autoDrawCard}>
+            <Text style={styles.autoDrawTitle}>No counter available</Text>
+            <Text style={styles.autoDrawSub}>
+              Drawing {gameState.pendingPickup} card{gameState.pendingPickup !== 1 ? 's' : ''} in {autoDrawCountdown}…
+            </Text>
+            <TouchableOpacity style={styles.autoDrawCancelBtn} onPress={cancelAutoDraw}>
+              <Text style={styles.autoDrawCancelText}>Cancel — draw manually</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -778,52 +1036,128 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  postActionBar: {
-    flexDirection: 'row',
-    padding: 12,
-    gap: 10,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    paddingBottom: 16,
+  // ── On-cards declaration window ────────────────────────────────────────────
+  onCardsOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    zIndex: 120,
+    paddingBottom: 24,
   },
-  onCardsBtn: {
-    flex: 1,
-    backgroundColor: 'rgba(255,193,7,0.18)',
-    borderRadius: 12,
-    padding: 15,
+  onCardsCard: {
+    backgroundColor: '#1a237e',
+    borderRadius: 20,
+    padding: 24,
+    width: '88%',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(255,193,7,0.55)',
+    borderColor: 'rgba(255,193,7,0.45)',
+    gap: 14,
   },
-  onCardsBtnText: {
-    color: '#ffc107',
-    fontSize: 14,
-    fontWeight: '700',
+  onCardsHandCount: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  onCardsBigBtn: {
+    backgroundColor: '#ffc107',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    width: '100%',
+  },
+  onCardsBigBtnText: {
+    color: '#1a237e',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  countdownTrack: {
+    flexDirection: 'row',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
+    width: '100%',
+  },
+  countdownFill: {
+    backgroundColor: '#ffc107',
+    borderRadius: 3,
+  },
+  countdownLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '500',
   },
   declaredBadge: {
-    flex: 1,
     backgroundColor: 'rgba(76,175,80,0.15)',
-    borderRadius: 12,
-    padding: 15,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
     alignItems: 'center',
+    width: '100%',
     borderWidth: 1,
     borderColor: 'rgba(76,175,80,0.35)',
   },
   declaredBadgeText: {
     color: '#81c784',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
-  endTurnBtn: {
-    flex: 2,
-    backgroundColor: '#37474f',
-    borderRadius: 12,
-    padding: 15,
+  // ── Auto-draw countdown overlay ────────────────────────────────────────────
+  autoDrawOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    zIndex: 120,
+    paddingBottom: 24,
   },
-  endTurnBtnText: {
+  autoDrawCard: {
+    backgroundColor: '#4e342e',
+    borderRadius: 20,
+    padding: 24,
+    width: '88%',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,87,34,0.45)',
+    gap: 12,
+  },
+  autoDrawTitle: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
+    textAlign: 'center',
+  },
+  autoDrawSub: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  autoDrawCancelBtn: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  autoDrawCancelText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

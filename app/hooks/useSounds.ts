@@ -19,6 +19,20 @@ const SOUND_MODULES = {
   timeout: require('../assets/sounds/timeout.mp3'),
 } as const;
 
+// Volume per sound — set on load, not on every play.
+const SOUND_VOLUMES: Record<SoundName, number> = {
+  card_deal: 0.6,
+  card_slide: 0.7,
+  card_flip: 0.8,
+  card_draw: 0.6,
+  power_card: 0.9,
+  penalty: 1.0,
+  on_cards: 0.85,
+  win: 1.0,
+  shuffle: 0.7,
+  timeout: 0.75,
+};
+
 export type SoundName = keyof typeof SOUND_MODULES;
 
 const MUTE_STORAGE_KEY = 'card_game_muted';
@@ -64,7 +78,7 @@ export function useSounds() {
         try {
           const { sound } = await Audio.Sound.createAsync(SOUND_MODULES[name], {
             shouldPlay: false,
-            volume: 1.0,
+            volume: SOUND_VOLUMES[name],
           });
           if (!cancelled) {
             soundsRef.current[name] = sound;

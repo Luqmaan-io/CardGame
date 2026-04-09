@@ -329,26 +329,64 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     }
   });
 
+  // room:rejoin — { roomId, playerId }
+  // Called by the client on socket reconnect to re-attach to an in-progress game.
+  socket.on('room:rejoin', ({ roomId, playerId }: { roomId: string; playerId: string }) => {
+    const room = getRoom(roomId);
+    if (!room) {
+      socket.emit('game:error', { message: 'Room no longer exists' });
+      return;
+    }
+
+    const player = room.players.find((p) => p.playerId === playerId);
+    if (!player) {
+      socket.emit('game:error', { message: 'Player not found in room' });
+      return;
+    }
+
+    // Update the socket ID for this player and re-join the socket room
+    const updatedRoom: Room = {
+      ...room,
+      players: room.players.map((p) =>
+        p.playerId === playerId ? { ...p, socketId: socket.id } : p
+      ),
+    };
+    updateRoom(updatedRoom);
+    socket.join(roomId);
+
+    // Send current game state to the rejoining player
+    if (updatedRoom.state) {
+      socket.emit('game:state', { state: updatedRoom.state });
+    }
+    socket.emit('room:rejoined', { roomId });
+  });
+
   // disconnect
   socket.on('disconnect', () => {
     const room = getRoomBySocket(socket.id);
     if (!room) return;
 
-    const updated = leaveRoom(room.id, socket.id);
-    if (updated.players.length === 0) {
-      clearTurnTimer(room.id);
+    const player = room.players.find((p) => p.socketId === socket.id);
+    if (!player) return;
+
+    if (room.status === 'waiting') {
+      // Waiting room — remove player normally
+      const updated = leaveRoom(room.id, socket.id);
+      if (updated.players.length === 0) {
+        clearTurnTimer(room.id);
+      } else {
+        io.to(room.id).emit('room:updated', { room: updated });
+      }
       return;
     }
 
-    if (updated.status === 'playing') {
-      clearTurnTimer(room.id);
-      const finished: Room = { ...updated, status: 'finished' };
-      updateRoom(finished);
-      io.to(room.id).emit('game:error', {
-        message: `A player disconnected — game ended`,
-      });
-    } else {
-      io.to(room.id).emit('room:updated', { room: updated });
-    }
+    // Game in progress — soft disconnect.
+    // Do NOT remove the player immediately. The turn timer will apply strikes
+    // via applyTimeout after 30s if they don't reconnect.
+    // Just notify the other players.
+    io.to(room.id).emit('game:player-disconnected', {
+      playerId: player.playerId,
+      playerName: player.name,
+    });
   });
 }

@@ -56,6 +56,31 @@ describe('isValidPlay — basic matching', () => {
   });
 });
 
+describe('isValidPlay — Ace always valid in normal turn', () => {
+  it('Ace of Spades on top of 9 of Diamonds with no penalty is valid', () => {
+    const state = makeState({ discard: [{ rank: '9', suit: 'diamonds' }] });
+    expect(isValidPlay({ rank: 'A', suit: 'spades' }, state)).toBe(true);
+  });
+
+  it('Ace of Spades is blocked when 2-stack penalty is active', () => {
+    const state = makeState({
+      discard: [{ rank: '9', suit: 'diamonds' }],
+      pendingPickupType: '2',
+      pendingPickup: 2,
+    });
+    expect(isValidPlay({ rank: 'A', suit: 'spades' }, state)).toBe(false);
+  });
+
+  it('Ace of Spades is blocked when jack penalty is active', () => {
+    const state = makeState({
+      discard: [{ rank: '9', suit: 'diamonds' }],
+      pendingPickupType: 'jack',
+      pendingPickup: 7,
+    });
+    expect(isValidPlay({ rank: 'A', suit: 'spades' }, state)).toBe(false);
+  });
+});
+
 describe('isValidPlay — pending pickup (2-stack)', () => {
   it('only allows a 2 when pendingPickupType is "2"', () => {
     const state = makeState({ pendingPickupType: '2', pendingPickup: 2 });

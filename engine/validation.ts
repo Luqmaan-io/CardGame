@@ -40,6 +40,9 @@ export function isValidPlay(card: Card, state: GameState): boolean {
     return card.rank === '8';
   }
 
+  // Ace is always valid in a normal turn — it overrides suit/rank matching
+  if (card.rank === 'A') return true;
+
   // Queen: player must also hold a same-suit cover card (can't be the Queen itself)
   if (card.rank === 'Q') {
     const currentPlayer = state.players[state.currentPlayerIndex];

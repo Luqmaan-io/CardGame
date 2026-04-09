@@ -1,7 +1,7 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { createDeck, shuffleDeck, dealCards } from '../../engine/deck';
-import { applyPlay, advanceTurn, drawCard as engineDrawCard, declareOnCards as engineDeclareOnCards } from '../../engine/state';
+import { applyPlay, advanceTurn, drawCard as engineDrawCard, declareOnCards as engineDeclareOnCards, applyTimeout } from '../../engine/state';
 import { pickAIMove } from '../../engine/ai';
 import { isValidCombo } from '../../engine/validation';
 import { useGameStore } from '../store/gameStore';
@@ -17,6 +17,7 @@ export function useLocalGame() {
   const { setGameState: storeSetGameState } = useGameStore();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const myPlayerId = 'player-human';
 
   // Ref to hold the latest state so the async AI loop always reads current state
@@ -27,6 +28,21 @@ export function useLocalGame() {
   const humanNameRef = useRef<string>('Player');
   // Stable ref to runGameLoop so useCallback closures don't go stale
   const runGameLoopRef = useRef<(state: GameState) => void>(() => {});
+
+  // ── Track turn start time for the visual timer ─────────────────────────────
+  // Updates whenever the current player changes or game starts.
+  useEffect(() => {
+    if (!gameState || gameState.phase === 'game-over') {
+      setTurnStartedAt(null);
+      return;
+    }
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer?.id === 'player-human') {
+      setTurnStartedAt(Date.now());
+    } else {
+      setTurnStartedAt(null);
+    }
+  }, [gameState?.currentPlayerIndex, gameState?.phase]);
 
   function startLocalGame(playerName: string, aiCount: number) {
     humanNameRef.current = playerName;
@@ -265,6 +281,20 @@ export function useLocalGame() {
     }
   }, []);
 
+  // Applies a timeout strike for the human player (same as server-side applyTimeout).
+  // Used by game.tsx when the local turn timer expires.
+  const humanApplyTimeout = useCallback(() => {
+    const state = stateRef.current;
+    if (!state || state.phase === 'game-over') return;
+    const currentPlayer = state.players[state.currentPlayerIndex];
+    if (!currentPlayer || currentPlayer.id !== 'player-human') return;
+
+    const newState = applyTimeout(state);
+    stateRef.current = newState;
+    setGameState(newState);
+    runGameLoopRef.current(newState);
+  }, []);
+
   // Used by game screen to get player names for display
   const playerNames: Record<string, string> = {};
   if (gameState) {
@@ -283,10 +313,12 @@ export function useLocalGame() {
     myPlayerId,
     isAIThinking,
     playerNames,
+    turnStartedAt,
     startLocalGame,
     humanPlay,
     humanDraw,
     humanEndTurn,
     humanDeclareOnCards,
+    humanApplyTimeout,
   };
 }

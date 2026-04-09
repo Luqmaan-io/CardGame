@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { Socket } from 'socket.io-client';
 import type { GameState, Card } from '../../engine/types';
 
+export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+
 export interface RoomPlayer {
   playerId: string;
   name: string;
@@ -24,6 +26,7 @@ interface GameStore {
   playerName: string;
   error: string | null;
   pendingTimeoutNotification: string | null;
+  connectionState: ConnectionState;
 
   setGameState: (state: GameState) => void;
   setError: (error: string | null) => void;
@@ -36,6 +39,7 @@ interface GameStore {
   clearSelection: () => void;
   reset: () => void;
   setPendingTimeoutNotification: (msg: string | null) => void;
+  setConnectionState: (state: ConnectionState) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -48,10 +52,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerName: '',
   error: null,
   pendingTimeoutNotification: null,
+  connectionState: 'connecting',
 
   setGameState: (state) => set({ gameState: state, selectedCards: [] }),
   setError: (error) => set({ error }),
   setPendingTimeoutNotification: (msg) => set({ pendingTimeoutNotification: msg }),
+  setConnectionState: (state) => set({ connectionState: state }),
 
   setRoom: (roomId, playerId) => set({ roomId, myPlayerId: playerId }),
 

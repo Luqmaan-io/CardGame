@@ -25,7 +25,7 @@ export function joinRoom(
 ): Room | Error {
   const room = rooms.get(roomId);
   if (!room) return new Error(`Room ${roomId} not found`);
-  if (room.status !== 'waiting') return new Error('Game already started');
+  if (room.status !== 'waiting') return new Error('Game already in progress');
   if (room.players.length >= room.maxPlayers) return new Error('Room is full');
 
   const playerId = `player-${room.players.length + 1}`;

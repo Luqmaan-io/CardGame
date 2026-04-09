@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { MutableRefObject, RefObject, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Card } from './Card';
 import { Hand } from './Hand';
 import { DiscardPile } from './DiscardPile';
 import type { GameState, Card as CardType } from '../../engine/types';
+import type { ConnectionState } from '../store/gameStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,14 @@ interface GameBoardProps {
   isDealing?: boolean;
   dealtCardCounts?: Record<string, number>;
   deckCountOverride?: number | null;
+  // Pixel-accurate animation refs (optional — fallback positions used if absent)
+  drawPileRef?: RefObject<View>;
+  discardPileRef?: RefObject<View>;
+  humanHandRef?: RefObject<View>;
+  opponentRefs?: MutableRefObject<Record<string, View | null>>;
+  // Multiplayer connection
+  isReconnecting?: boolean;
+  onReconnectTimeout?: () => void;
 }
 
 interface OpponentSlotProps {
@@ -176,6 +185,41 @@ function DrawPileView({ count }: { count: number }) {
   );
 }
 
+// ─── ReconnectionOverlay ──────────────────────────────────────────────────────
+
+function ReconnectionOverlay({ onTimeout }: { onTimeout?: () => void }) {
+  const [seconds, setSeconds] = useState(30);
+  const [dotStep, setDotStep] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setDotStep((s) => (s + 1) % 3), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (seconds <= 0) {
+      onTimeout?.();
+      return;
+    }
+    const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [seconds]);
+
+  const dots = ['.', '..', '...'][dotStep] ?? '.';
+
+  return (
+    <View style={overlayStyles.backdrop}>
+      <View style={overlayStyles.card}>
+        <Text style={overlayStyles.title}>Connection lost</Text>
+        <Text style={overlayStyles.subtitle}>Reconnecting{dots}</Text>
+        <Text style={overlayStyles.countdown}>
+          You will be removed in {seconds}s
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 // ─── GameBoard ────────────────────────────────────────────────────────────────
 
 export function GameBoard({
@@ -193,6 +237,12 @@ export function GameBoard({
   isDealing = false,
   dealtCardCounts,
   deckCountOverride,
+  drawPileRef,
+  discardPileRef,
+  humanHandRef,
+  opponentRefs,
+  isReconnecting = false,
+  onReconnectTimeout,
 }: GameBoardProps) {
   if (!gameState || !gameState.players) {
     return (
@@ -218,23 +268,30 @@ export function GameBoard({
       {/* ── Opponents ─────────────────────────────────────────────────── */}
       <View style={styles.opponentsRow}>
         {opponents.map((opp) => (
-          <OpponentSlot
+          <View
             key={opp.id}
-            playerId={opp.id}
-            hand={opp.hand}
-            name={playerNames[opp.id] ?? opp.id.slice(0, 8)}
-            isCurrentTurn={opp.id === currentPlayer?.id}
-            hasOnCardsDeclaration={gameState.onCardsDeclarations.includes(opp.id)}
-            strikes={gameState.timeoutStrikes[opp.id] ?? 0}
-            isFlashing={flashingPlayerId === opp.id}
-            visibleCardCount={dealtCardCounts ? (dealtCardCounts[opp.id] ?? 0) : undefined}
-          />
+            style={styles.opponentRefWrapper}
+            ref={(r) => {
+              if (opponentRefs) opponentRefs.current[opp.id] = r;
+            }}
+          >
+            <OpponentSlot
+              playerId={opp.id}
+              hand={opp.hand}
+              name={playerNames[opp.id] ?? opp.id.slice(0, 8)}
+              isCurrentTurn={opp.id === currentPlayer?.id}
+              hasOnCardsDeclaration={gameState.onCardsDeclarations.includes(opp.id)}
+              strikes={gameState.timeoutStrikes[opp.id] ?? 0}
+              isFlashing={flashingPlayerId === opp.id}
+              visibleCardCount={dealtCardCounts ? (dealtCardCounts[opp.id] ?? 0) : undefined}
+            />
+          </View>
         ))}
       </View>
 
       {/* ── Centre table ──────────────────────────────────────────────── */}
       <View style={styles.centre}>
-        <View style={styles.pileGroup}>
+        <View style={styles.pileGroup} ref={drawPileRef}>
           <DrawPileView count={displayDeckCount} />
           <Text style={styles.pileLabel}>Draw</Text>
         </View>
@@ -249,7 +306,7 @@ export function GameBoard({
         </View>
 
         {/* Discard pile — loose stack effect + active suit pill built in */}
-        <View style={styles.pileGroup}>
+        <View style={styles.pileGroup} ref={discardPileRef}>
           <View style={styles.pileOuter}>
             <DiscardPile discard={discard} activeSuit={activeSuit} />
           </View>
@@ -265,17 +322,24 @@ export function GameBoard({
           </View>
         )}
         {myPlayer ? (
-          <Hand
-            cards={myPlayer.hand}
-            validPlays={validPlays}
-            selectedCards={selectedCards}
-            onCardSelect={handleCardSelect ? (c) => handleCardSelect(c) : undefined}
-            onClearSelection={onClearSelection}
-            isMyTurn={isMyTurn && !isDealing}
-            visibleCardCount={dealtCardCounts ? (dealtCardCounts[myPlayerId] ?? 0) : undefined}
-          />
+          <View ref={humanHandRef}>
+            <Hand
+              cards={myPlayer.hand}
+              validPlays={validPlays}
+              selectedCards={selectedCards}
+              onCardSelect={handleCardSelect ? (c) => handleCardSelect(c) : undefined}
+              onClearSelection={onClearSelection}
+              isMyTurn={isMyTurn && !isDealing}
+              visibleCardCount={dealtCardCounts ? (dealtCardCounts[myPlayerId] ?? 0) : undefined}
+            />
+          </View>
         ) : null}
       </View>
+
+      {/* ── Reconnection overlay ──────────────────────────────────────── */}
+      {isReconnecting && (
+        <ReconnectionOverlay onTimeout={onReconnectTimeout} />
+      )}
     </View>
   );
 }
@@ -309,10 +373,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.2)',
   },
+  opponentRefWrapper: {
+    flex: 1,
+    maxWidth: 180,
+  },
   opponentSlot: {
     alignItems: 'center',
     flex: 1,
-    maxWidth: 180,
     paddingHorizontal: 6,
     paddingVertical: 8,
     borderRadius: 12,
@@ -478,5 +545,45 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+  },
+});
+
+const overlayStyles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 28,
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 240,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#212121',
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#616161',
+    fontWeight: '500',
+  },
+  countdown: {
+    fontSize: 13,
+    color: '#ef5350',
+    fontWeight: '600',
+    marginTop: 4,
   },
 });

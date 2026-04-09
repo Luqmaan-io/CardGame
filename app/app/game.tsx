@@ -18,6 +18,7 @@ import { Toast, ToastMessage } from '../components/Toast';
 import { AnimationOverlay, AnimationOverlayHandle, animId } from '../components/AnimationOverlay';
 import { useSounds } from '../hooks/useSounds';
 import { useHaptics } from '../hooks/useHaptics';
+import { HowToPlayModal } from '../components/HowToPlayModal';
 import { getGamePositions } from '../utils/animations';
 import { measurePosition, centreOf } from '../utils/measurePosition';
 import { getValidPlays } from '../../engine/ai';
@@ -84,6 +85,7 @@ export default function GameScreen() {
     humanEndTurn,
     humanDeclareOnCards,
     humanApplyTimeout,
+    adjustTurnStartedAt,
   } = useLocalGame();
 
   // Pick active game data based on mode
@@ -114,6 +116,10 @@ export default function GameScreen() {
 
   // ── Flashing player (timeout animation) ──────────────────────────────────
   const [flashingPlayerId, setFlashingPlayerId] = useState<string | null>(null);
+
+  // ── How to play modal ─────────────────────────────────────────────────────
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const modalOpenedAtRef = useRef<number | null>(null);
 
   // ── On-cards declaration window (Fix 2) ────────────────────────────────────
   const [showOnCardsWindow, setShowOnCardsWindow] = useState(false);
@@ -629,8 +635,9 @@ export default function GameScreen() {
   }, [gameState?.currentPlayerIndex, gameState?.pendingPickup, isDealing]);
 
   // ── Local mode: fire humanApplyTimeout when 30s expires ──────────────────
-  // NOTE: gameState?.currentPlayerHasActed is in deps so the effect re-runs
-  // (and the cleanup cancels the pending timeout) the moment the human acts.
+  // NOTE: gameState?.currentPlayerHasActed and showHowToPlay are in deps so the
+  // effect re-runs (and its cleanup cancels the pending timeout) the moment the
+  // human acts OR the modal opens.
   useEffect(() => {
     if (!isLocalMode) return;
     if (!gameState || gameState.phase === 'game-over') return;
@@ -640,13 +647,15 @@ export default function GameScreen() {
     if (!localTurnStartedAt) return;
     // Already acted — cancel any pending timeout and don't schedule a new one
     if (gameState.currentPlayerHasActed) return;
+    // Modal open — pause the turn timer; no timeout while rules are being read
+    if (showHowToPlay) return;
 
     const elapsed = Date.now() - localTurnStartedAt;
     const remaining = Math.max(0, 30000 - elapsed);
 
     const id = setTimeout(() => humanApplyTimeout(), remaining);
     return () => clearTimeout(id);
-  }, [isLocalMode, isDealing, localTurnStartedAt, gameState?.phase, gameState?.currentPlayerHasActed]);
+  }, [isLocalMode, isDealing, localTurnStartedAt, gameState?.phase, gameState?.currentPlayerHasActed, showHowToPlay]);
 
   // ── Early return: no game state yet ──────────────────────────────────────
   if (!gameState) {
@@ -851,11 +860,22 @@ export default function GameScreen() {
   const onCardsActive = gameState.onCardsDeclarations.includes(myPlayerId);
   const showPreAction =
     isMyTurn && !hasActed && !isAIThinking && !isDealing && gameState.phase !== 'declare-suit';
+
   // timerStartedAt: cleared the moment the player acts so TurnTimer freezes/stops.
   // Local mode uses hook-tracked time; online uses server-stamped time.
-  const timerStartedAt = hasActed
+  // Also frozen (display-only) while the HowToPlay modal is open in local mode.
+  const rawTimerStartedAt = hasActed
     ? null
     : (isLocalMode ? localTurnStartedAt : gameState.timerStartedAt);
+  const timerStartedAt = (isLocalMode && showHowToPlay && rawTimerStartedAt !== null && modalOpenedAtRef.current !== null)
+    ? Date.now() - (modalOpenedAtRef.current - rawTimerStartedAt)  // freeze elapsed at modal-open time
+    : rawTimerStartedAt;
+
+  // Current player's colour for timer bar and turn message
+  const currentPlayerColourHex = currentPlayer?.colourHex;
+  // Message colour: applied when the message is a player-turn message (not system messages)
+  const messageIsPlayerTurn = !isDealing && !isMyTurn && gameState.phase !== 'declare-suit';
+  const messageColourHex = messageIsPlayerTurn ? currentPlayerColourHex : undefined;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -867,6 +887,22 @@ export default function GameScreen() {
       {/* Mute toggle */}
       <TouchableOpacity style={styles.muteBtn} onPress={toggleMute}>
         <Text style={styles.muteBtnText}>{isMuted ? '🔇' : '🔊'}</Text>
+      </TouchableOpacity>
+
+      {/* How to play button */}
+      <TouchableOpacity
+        style={styles.howToPlayBtn}
+        onPress={() => {
+          if (!showHowToPlay) {
+            modalOpenedAtRef.current = Date.now();
+          } else if (isLocalMode && modalOpenedAtRef.current !== null) {
+            adjustTurnStartedAt(Date.now() - modalOpenedAtRef.current);
+            modalOpenedAtRef.current = null;
+          }
+          setShowHowToPlay((v) => !v);
+        }}
+      >
+        <Text style={styles.howToPlayBtnText}>?</Text>
       </TouchableOpacity>
 
       {/* Skip deal button — only visible while dealing */}
@@ -900,13 +936,14 @@ export default function GameScreen() {
           useGameStore.getState().setError('You were removed from the game');
           router.replace('/');
         }}
+        messageColourHex={messageColourHex}
       />
 
       <AnimationOverlay ref={overlayRef} />
 
       {/* Timer — shown in all game modes, hidden during deal */}
       {!isDealing && (
-        <TurnTimer timerStartedAt={timerStartedAt} />
+        <TurnTimer timerStartedAt={timerStartedAt} currentPlayerColourHex={currentPlayerColourHex} />
       )}
 
       {showPreAction && (
@@ -968,6 +1005,17 @@ export default function GameScreen() {
         </View>
       )}
 
+      <HowToPlayModal
+        visible={showHowToPlay}
+        onClose={() => {
+          if (isLocalMode && modalOpenedAtRef.current !== null) {
+            adjustTurnStartedAt(Date.now() - modalOpenedAtRef.current);
+            modalOpenedAtRef.current = null;
+          }
+          setShowHowToPlay(false);
+        }}
+      />
+
       <SuitPicker visible={showSuitPicker} onSelect={handleDeclareSuit} />
     </SafeAreaView>
   );
@@ -1001,6 +1049,25 @@ const styles = StyleSheet.create({
   },
   muteBtnText: {
     fontSize: 20,
+  },
+  howToPlayBtn: {
+    position: 'absolute',
+    top: 52,
+    left: 14,
+    zIndex: 50,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  howToPlayBtnText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 16,
+    fontWeight: '700',
   },
   skipBtn: {
     position: 'absolute',

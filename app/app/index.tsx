@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSocket } from '../hooks/useSocket';
 import { useGameStore } from '../store/gameStore';
+import { HowToPlayModal } from '../components/HowToPlayModal';
 // Subtle animated waiting indicator — three dots that cycle 1→2→3→1
 function PulsingDots() {
   const [step, setStep] = useState(0);
@@ -46,6 +47,8 @@ export default function HomeScreen() {
   // AI flow state
   const [aiName, setAiName] = useState('');
   const [aiCount, setAiCount] = useState<1 | 2 | 3>(1);
+
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   const { width } = useWindowDimensions();
   const wide = width >= 640;
@@ -364,7 +367,15 @@ export default function HomeScreen() {
 
           </View>
         )}
+
+        {/* ── How to play button — below both mode sections ── */}
+        <TouchableOpacity style={styles.howToPlayBtn} onPress={() => setShowHowToPlay(true)}>
+          <Text style={styles.howToPlayBtnText}>? How to play</Text>
+        </TouchableOpacity>
+
       </ScrollView>
+
+      <HowToPlayModal visible={showHowToPlay} onClose={() => setShowHowToPlay(false)} />
     </SafeAreaView>
   );
 }
@@ -681,5 +692,19 @@ const styles = StyleSheet.create({
     color: '#616161',
     textAlign: 'center',
     fontSize: 14,
+  },
+  howToPlayBtn: {
+    alignSelf: 'center',
+    marginTop: 28,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  howToPlayBtnText: {
+    color: '#616161',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

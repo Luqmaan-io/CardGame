@@ -22,6 +22,7 @@ interface Standing {
   cardCount: number;
   score: number;
   isWinner: boolean;
+  colourHex?: string;
 }
 
 export default function ResultsScreen() {
@@ -108,6 +109,7 @@ export default function ResultsScreen() {
       cardCount: p.hand.length,
       score: gameState.sessionScores[p.id] ?? 0,
       isWinner: p.id === winnerId,
+      colourHex: p.colourHex,
     }))
     .sort((a, b) => a.cardCount - b.cardCount);
 
@@ -172,7 +174,7 @@ export default function ResultsScreen() {
                 ]}
               >
                 <Text style={styles.position}>#{index + 1}</Text>
-                <Text style={styles.playerName}>{item.name}</Text>
+                <Text style={[styles.playerName, item.colourHex ? { color: item.colourHex } : undefined]}>{item.name}</Text>
                 <View style={styles.rightSide}>
                   <Text style={styles.cardCount}>
                     {item.cardCount === 0 ? 'out!' : `${item.cardCount} cards`}
@@ -186,7 +188,7 @@ export default function ResultsScreen() {
             ) : (
               <View style={[styles.row]}>
                 <Text style={styles.position}>#{index + 1}</Text>
-                <Text style={styles.playerName}>{item.name}</Text>
+                <Text style={[styles.playerName, item.colourHex ? { color: item.colourHex } : undefined]}>{item.name}</Text>
                 <View style={styles.rightSide}>
                   <Text style={styles.cardCount}>
                     {item.cardCount === 0 ? 'out!' : `${item.cardCount} cards`}

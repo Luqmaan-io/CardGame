@@ -66,13 +66,13 @@ export function useSocket() {
 
     newSocket.on(
       'room:joined',
-      ({ roomId, room }: { roomId: string; room: { id: string; players: { socketId: string; playerId: string; name: string }[]; maxPlayers: 2 | 3 | 4; status: RoomInfo['status'] } }) => {
+      ({ roomId, room }: { roomId: string; room: { id: string; players: { socketId: string; playerId: string; name: string; colourHex?: string }[]; maxPlayers: 2 | 3 | 4; status: RoomInfo['status'] } }) => {
         const playerId =
           room.players.find((p) => p.socketId === newSocket.id)?.playerId ?? '';
         setRoom(roomId, playerId);
         setRoomInfo({
           id: room.id,
-          players: room.players.map((p) => ({ playerId: p.playerId, name: p.name })),
+          players: room.players.map((p) => ({ playerId: p.playerId, name: p.name, colourHex: p.colourHex })),
           maxPlayers: room.maxPlayers,
           status: room.status,
         });
@@ -81,10 +81,10 @@ export function useSocket() {
 
     newSocket.on(
       'room:updated',
-      ({ room }: { room: { id: string; players: { playerId: string; name: string }[]; maxPlayers: 2 | 3 | 4; status: RoomInfo['status'] } }) => {
+      ({ room }: { room: { id: string; players: { playerId: string; name: string; colourHex?: string }[]; maxPlayers: 2 | 3 | 4; status: RoomInfo['status'] } }) => {
         setRoomInfo({
           id: room.id,
-          players: room.players.map((p) => ({ playerId: p.playerId, name: p.name })),
+          players: room.players.map((p) => ({ playerId: p.playerId, name: p.name, colourHex: p.colourHex })),
           maxPlayers: room.maxPlayers,
           status: room.status,
         });

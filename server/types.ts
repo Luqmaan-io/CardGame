@@ -4,6 +4,7 @@ export interface RoomPlayer {
   socketId: string;
   playerId: string;
   name: string;
+  colourHex: string;
 }
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished';

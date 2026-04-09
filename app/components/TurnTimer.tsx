@@ -5,9 +5,10 @@ const TURN_SECONDS = 30;
 
 interface TurnTimerProps {
   timerStartedAt: number | null;
+  currentPlayerColourHex?: string;
 }
 
-export function TurnTimer({ timerStartedAt }: TurnTimerProps) {
+export function TurnTimer({ timerStartedAt, currentPlayerColourHex }: TurnTimerProps) {
   const [secondsLeft, setSecondsLeft] = useState(TURN_SECONDS);
 
   useEffect(() => {
@@ -27,8 +28,13 @@ export function TurnTimer({ timerStartedAt }: TurnTimerProps) {
   }, [timerStartedAt]);
 
   const fraction = secondsLeft / TURN_SECONDS;
+  // Use the player's assigned colour at full time; switch to urgency colours as time runs out.
   const color =
-    secondsLeft > 15 ? '#4caf50' : secondsLeft > 8 ? '#ff9800' : '#f44336';
+    secondsLeft <= 8
+      ? '#f44336'
+      : secondsLeft <= 15
+      ? '#ff9800'
+      : (currentPlayerColourHex ?? '#4caf50');
 
   return (
     <View style={styles.container}>

@@ -1,4 +1,5 @@
 import { Room, RoomPlayer } from './types';
+import { PLAYER_COLOURS, assignRandomColour } from '../shared/colours';
 
 const rooms = new Map<string, Room>();
 
@@ -29,7 +30,11 @@ export function joinRoom(
   if (room.players.length >= room.maxPlayers) return new Error('Room is full');
 
   const playerId = `player-${room.players.length + 1}`;
-  const player: RoomPlayer = { socketId, playerId, name: playerName };
+  const takenColourIds = room.players
+    .map((p) => PLAYER_COLOURS.find((c) => c.hex === p.colourHex)?.id ?? '')
+    .filter(Boolean);
+  const colour = assignRandomColour(takenColourIds);
+  const player: RoomPlayer = { socketId, playerId, name: playerName, colourHex: colour.hex };
   const updated: Room = { ...room, players: [...room.players, player] };
   rooms.set(roomId, updated);
   return updated;

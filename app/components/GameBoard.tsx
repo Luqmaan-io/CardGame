@@ -32,6 +32,7 @@ interface GameBoardProps {
   // Multiplayer connection
   isReconnecting?: boolean;
   onReconnectTimeout?: () => void;
+  messageColourHex?: string;
 }
 
 interface OpponentSlotProps {
@@ -41,6 +42,7 @@ interface OpponentSlotProps {
   isCurrentTurn: boolean;
   hasOnCardsDeclaration: boolean;
   strikes: number;
+  colourHex?: string;
 }
 
 // ─── OpponentSlot ─────────────────────────────────────────────────────────────
@@ -58,6 +60,7 @@ function OpponentSlot({
   strikes,
   isFlashing = false,
   visibleCardCount,
+  colourHex,
 }: OpponentSlotPropsExtended) {
   const liftAnim = useRef(new Animated.Value(0)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -132,7 +135,12 @@ function OpponentSlot({
             <Text style={styles.strikeIconText}>!</Text>
           </View>
         )}
-        <Text style={styles.opponentName} numberOfLines={1}>{name}</Text>
+        <Text
+          style={[styles.opponentName, colourHex ? { color: colourHex } : undefined]}
+          numberOfLines={1}
+        >
+          {name}
+        </Text>
       </View>
 
       {hasOnCardsDeclaration && (
@@ -159,7 +167,7 @@ function OpponentSlot({
         )}
       </View>
 
-      <View style={styles.cardCountBadge}>
+      <View style={[styles.cardCountBadge, colourHex ? { backgroundColor: colourHex + '99' } : undefined]}>
         <Text style={styles.cardCountText}>{effectiveCount}</Text>
       </View>
     </Animated.View>
@@ -243,6 +251,7 @@ export function GameBoard({
   opponentRefs,
   isReconnecting = false,
   onReconnectTimeout,
+  messageColourHex,
 }: GameBoardProps) {
   if (!gameState || !gameState.players) {
     return (
@@ -284,6 +293,7 @@ export function GameBoard({
               strikes={gameState.timeoutStrikes[opp.id] ?? 0}
               isFlashing={flashingPlayerId === opp.id}
               visibleCardCount={dealtCardCounts ? (dealtCardCounts[opp.id] ?? 0) : undefined}
+              colourHex={opp.colourHex}
             />
           </View>
         ))}
@@ -300,7 +310,9 @@ export function GameBoard({
         <View style={styles.centreInfo}>
           {message ? (
             <View style={styles.messageBox}>
-              <Text style={styles.messageText}>{message}</Text>
+              <Text style={[styles.messageText, messageColourHex ? { color: messageColourHex } : undefined]}>
+                {message}
+              </Text>
             </View>
           ) : null}
         </View>

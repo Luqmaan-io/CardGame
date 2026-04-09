@@ -7,6 +7,7 @@ export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'rec
 export interface RoomPlayer {
   playerId: string;
   name: string;
+  colourHex?: string;
 }
 
 export interface RoomInfo {

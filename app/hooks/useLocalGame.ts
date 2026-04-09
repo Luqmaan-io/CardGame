@@ -4,6 +4,7 @@ import { createDeck, shuffleDeck, dealCards } from '../../engine/deck';
 import { applyPlay, advanceTurn, drawCard as engineDrawCard, declareOnCards as engineDeclareOnCards, applyTimeout } from '../../engine/state';
 import { pickAIMove } from '../../engine/ai';
 import { isValidCombo } from '../../engine/validation';
+import { assignRandomColour } from '../../shared/colours';
 import { useGameStore } from '../store/gameStore';
 import type { Card, GameState, Player, Suit } from '../../engine/types';
 
@@ -49,13 +50,18 @@ export function useLocalGame() {
     const clampedAI = Math.min(3, Math.max(1, aiCount));
     const playerCount = 1 + clampedAI;
 
+    // Assign unique random colours to every player
+    const takenColourIds: string[] = [];
+    const humanColour = assignRandomColour(takenColourIds);
+    takenColourIds.push(humanColour.id);
+
     const players: Player[] = [
-      { id: 'player-human', hand: [], isHuman: true },
-      ...Array.from({ length: clampedAI }, (_, i) => ({
-        id: `ai-${i + 1}`,
-        hand: [],
-        isHuman: false,
-      })),
+      { id: 'player-human', hand: [], isHuman: true, colourHex: humanColour.hex },
+      ...Array.from({ length: clampedAI }, (_, i) => {
+        const colour = assignRandomColour(takenColourIds);
+        takenColourIds.push(colour.id);
+        return { id: `ai-${i + 1}`, hand: [], isHuman: false, colourHex: colour.hex };
+      }),
     ];
 
     const deck = shuffleDeck(createDeck());
@@ -91,6 +97,7 @@ export function useLocalGame() {
       timeoutStrikes: {},
       sessionScores,
       onCardsDeclarations: [],
+      currentPlayerHasActed: false,
     };
 
     stateRef.current = initialState;
@@ -295,6 +302,12 @@ export function useLocalGame() {
     runGameLoopRef.current(newState);
   }, []);
 
+  // Used by game screen to pause the timer while a modal is open.
+  // Shifts turnStartedAt forward so elapsed time doesn't accumulate during the pause.
+  const adjustTurnStartedAt = useCallback((msToAdd: number) => {
+    setTurnStartedAt((prev) => (prev !== null ? prev + msToAdd : null));
+  }, []);
+
   // Used by game screen to get player names for display
   const playerNames: Record<string, string> = {};
   if (gameState) {
@@ -320,5 +333,6 @@ export function useLocalGame() {
     humanEndTurn,
     humanDeclareOnCards,
     humanApplyTimeout,
+    adjustTurnStartedAt,
   };
 }

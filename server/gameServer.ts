@@ -77,6 +77,7 @@ function initGameState(room: Room): GameState {
     id: p.playerId,
     hand: hands[i] ?? [],
     isHuman: true,
+    colourHex: p.colourHex,
   }));
 
   const startCard = remaining[0]!;

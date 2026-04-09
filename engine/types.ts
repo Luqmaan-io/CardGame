@@ -10,6 +10,7 @@ export interface Player {
   id: string;
   hand: Card[];
   isHuman: boolean;
+  colourHex?: string;
 }
 
 export type Direction = 'clockwise' | 'anticlockwise';

@@ -120,6 +120,9 @@ export default function GameScreen() {
   const [onCardsCountdown, setOnCardsCountdown] = useState(3);
   const onCardsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCardsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref always points to the latest render's startOnCardsWindow so setTimeout
+  // callbacks don't capture a stale closure.
+  const startOnCardsWindowRef = useRef<() => void>(() => {});
 
   // ── Auto-draw countdown (Fix 3) ───────────────────────────────────────────
   const [autoDrawCountdown, setAutoDrawCountdown] = useState<number | null>(null);
@@ -182,6 +185,8 @@ export default function GameScreen() {
       advanceTurnFn();
     }, 3100); // 3.1s gives the interval a final tick at 0
   }
+  // Always point to the latest render so setTimeout callbacks don't go stale.
+  startOnCardsWindowRef.current = startOnCardsWindow;
 
   // ── Auto-draw helpers ─────────────────────────────────────────────────────
 
@@ -624,6 +629,8 @@ export default function GameScreen() {
   }, [gameState?.currentPlayerIndex, gameState?.pendingPickup, isDealing]);
 
   // ── Local mode: fire humanApplyTimeout when 30s expires ──────────────────
+  // NOTE: gameState?.currentPlayerHasActed is in deps so the effect re-runs
+  // (and the cleanup cancels the pending timeout) the moment the human acts.
   useEffect(() => {
     if (!isLocalMode) return;
     if (!gameState || gameState.phase === 'game-over') return;
@@ -631,13 +638,15 @@ export default function GameScreen() {
     const current = gameState.players[gameState.currentPlayerIndex];
     if (!current || current.id !== myPlayerId) return;
     if (!localTurnStartedAt) return;
+    // Already acted — cancel any pending timeout and don't schedule a new one
+    if (gameState.currentPlayerHasActed) return;
 
     const elapsed = Date.now() - localTurnStartedAt;
     const remaining = Math.max(0, 30000 - elapsed);
 
     const id = setTimeout(() => humanApplyTimeout(), remaining);
     return () => clearTimeout(id);
-  }, [isLocalMode, isDealing, localTurnStartedAt, gameState?.phase]);
+  }, [isLocalMode, isDealing, localTurnStartedAt, gameState?.phase, gameState?.currentPlayerHasActed]);
 
   // ── Early return: no game state yet ──────────────────────────────────────
   if (!gameState) {
@@ -746,8 +755,9 @@ export default function GameScreen() {
       socketPlayCards(cards);
     }
     clearSelection();
-    // Open on-cards window after card animation (~350ms)
-    setTimeout(() => startOnCardsWindow(), 420);
+    // Open on-cards window after card animation (~350ms).
+    // Use ref so the callback reads fresh state, not the stale closure.
+    setTimeout(() => startOnCardsWindowRef.current(), 420);
   }
 
   async function handleSuitSelected(suit: Suit) {
@@ -784,8 +794,9 @@ export default function GameScreen() {
       socketPlayCards(cards, suit);
     }
     clearSelection();
-    // Open on-cards window after card animation (~350ms)
-    setTimeout(() => startOnCardsWindow(), 420);
+    // Open on-cards window after card animation (~350ms).
+    // Use ref so the callback reads fresh state, not the stale closure.
+    setTimeout(() => startOnCardsWindowRef.current(), 420);
   }
 
   // handleDrawFn is the underlying draw — also used by auto-draw countdown
@@ -840,8 +851,11 @@ export default function GameScreen() {
   const onCardsActive = gameState.onCardsDeclarations.includes(myPlayerId);
   const showPreAction =
     isMyTurn && !hasActed && !isAIThinking && !isDealing && gameState.phase !== 'declare-suit';
-  // timerStartedAt: local mode uses hook-tracked time; online uses server-stamped time
-  const timerStartedAt = isLocalMode ? localTurnStartedAt : gameState.timerStartedAt;
+  // timerStartedAt: cleared the moment the player acts so TurnTimer freezes/stops.
+  // Local mode uses hook-tracked time; online uses server-stamped time.
+  const timerStartedAt = hasActed
+    ? null
+    : (isLocalMode ? localTurnStartedAt : gameState.timerStartedAt);
 
   return (
     <SafeAreaView style={styles.safe}>

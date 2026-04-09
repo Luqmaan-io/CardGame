@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,15 @@ import {
   StyleSheet,
   FlatList,
   SafeAreaView,
+  Animated,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSocket } from '../hooks/useSocket';
 import { useGameStore } from '../store/gameStore';
+import { Confetti } from '../components/Confetti';
+import { useSounds } from '../hooks/useSounds';
+import { useHaptics } from '../hooks/useHaptics';
 
 interface Standing {
   id: string;
@@ -23,9 +28,51 @@ export default function ResultsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string; playerName?: string; aiCount?: string }>();
   const isLocalMode = params.mode === 'local';
+  const { width, height } = useWindowDimensions();
 
   const { startGame } = useSocket();
   const { gameState, myPlayerId, roomId, roomInfo, reset, setGameState } = useGameStore();
+  const { playSound } = useSounds();
+  const { trigger: haptic } = useHaptics();
+
+  const winnerId = gameState?.winnerId ?? null;
+  const isWinner = isLocalMode
+    ? winnerId === 'player-human'
+    : winnerId === myPlayerId;
+
+  // ── Win pulse animation (gold border glow on winner row) ──────────────────
+  const winPulse = useRef(new Animated.Value(0.4)).current;
+
+  // ── Play win sound + haptic + start pulse animation ───────────────────────
+  const didFireRef = useRef(false);
+  useEffect(() => {
+    if (didFireRef.current) return;
+    didFireRef.current = true;
+
+    // Play sound for winner
+    if (isWinner) {
+      playSound('win');
+      haptic('success');
+    }
+
+    // Gold border pulse: opacity 0.4 → 1.0, 3 cycles, winner or not
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(winPulse, {
+          toValue: 1.0,
+          duration: 600,
+          useNativeDriver: false,
+        }),
+        Animated.timing(winPulse, {
+          toValue: 0.4,
+          duration: 600,
+          useNativeDriver: false,
+        }),
+      ]),
+      { iterations: 3 }
+    );
+    pulse.start();
+  }, []);
 
   if (!gameState) {
     return (
@@ -43,9 +90,6 @@ export default function ResultsScreen() {
     );
   }
 
-  const winnerId = gameState.winnerId;
-
-  // Resolve display name for a player id
   function resolvePlayerName(id: string): string {
     if (isLocalMode) {
       if (id === 'player-human') return params.playerName ?? 'You';
@@ -56,9 +100,6 @@ export default function ResultsScreen() {
   }
 
   const winnerName = winnerId ? resolvePlayerName(winnerId) : 'Unknown';
-  const isWinner = isLocalMode
-    ? winnerId === 'player-human'
-    : winnerId === myPlayerId;
 
   const standings: Standing[] = gameState.players
     .map((p) => ({
@@ -72,7 +113,6 @@ export default function ResultsScreen() {
 
   function handlePlayAgain() {
     if (isLocalMode) {
-      // Clear the stored game state then re-navigate to game with same settings
       setGameState(null as never);
       router.replace({
         pathname: '/game',
@@ -98,8 +138,16 @@ export default function ResultsScreen() {
 
   const showPlayAgain = isLocalMode || !!roomId;
 
+  const winnerBorderColor = winPulse.interpolate({
+    inputRange: [0.4, 1.0],
+    outputRange: ['rgba(255,193,7,0.3)', 'rgba(255,193,7,1.0)'],
+  });
+
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Confetti falls on top of everything */}
+      <Confetti width={width} height={height} active={isWinner} />
+
       <View style={styles.container}>
         <Text style={styles.trophy}>
           {isWinner ? '🏆' : ''}
@@ -115,19 +163,40 @@ export default function ResultsScreen() {
           keyExtractor={(item) => item.id}
           style={styles.list}
           renderItem={({ item, index }) => (
-            <View style={[styles.row, item.isWinner && styles.winnerRow]}>
-              <Text style={styles.position}>#{index + 1}</Text>
-              <Text style={styles.playerName}>{item.name}</Text>
-              <View style={styles.rightSide}>
-                <Text style={styles.cardCount}>
-                  {item.cardCount === 0 ? 'out!' : `${item.cardCount} cards`}
-                </Text>
-                <View style={styles.scoreBadge}>
-                  <Text style={styles.scoreText}>{item.score} pt{item.score !== 1 ? 's' : ''}</Text>
+            item.isWinner ? (
+              <Animated.View
+                style={[
+                  styles.row,
+                  styles.winnerRow,
+                  { borderColor: winnerBorderColor },
+                ]}
+              >
+                <Text style={styles.position}>#{index + 1}</Text>
+                <Text style={styles.playerName}>{item.name}</Text>
+                <View style={styles.rightSide}>
+                  <Text style={styles.cardCount}>
+                    {item.cardCount === 0 ? 'out!' : `${item.cardCount} cards`}
+                  </Text>
+                  <View style={styles.scoreBadge}>
+                    <Text style={styles.scoreText}>{item.score} pt{item.score !== 1 ? 's' : ''}</Text>
+                  </View>
+                </View>
+                <Text style={styles.crown}>♛</Text>
+              </Animated.View>
+            ) : (
+              <View style={[styles.row]}>
+                <Text style={styles.position}>#{index + 1}</Text>
+                <Text style={styles.playerName}>{item.name}</Text>
+                <View style={styles.rightSide}>
+                  <Text style={styles.cardCount}>
+                    {item.cardCount === 0 ? 'out!' : `${item.cardCount} cards`}
+                  </Text>
+                  <View style={styles.scoreBadge}>
+                    <Text style={styles.scoreText}>{item.score} pt{item.score !== 1 ? 's' : ''}</Text>
+                  </View>
                 </View>
               </View>
-              {item.isWinner && <Text style={styles.crown}>♛</Text>}
-            </View>
+            )
           )}
         />
 
@@ -192,11 +261,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
     gap: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   winnerRow: {
     backgroundColor: '#1a3a1a',
-    borderWidth: 1,
-    borderColor: '#4caf50',
+    borderWidth: 1.5,
   },
   position: {
     color: '#616161',

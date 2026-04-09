@@ -18,6 +18,11 @@ interface GameBoardProps {
   selectionDisabled?: boolean;
   playerNames?: Record<string, string>;
   message: string;
+  flashingPlayerId?: string | null;
+  // Deal animation
+  isDealing?: boolean;
+  dealtCardCounts?: Record<string, number>;
+  deckCountOverride?: number | null;
 }
 
 interface OpponentSlotProps {
@@ -31,15 +36,55 @@ interface OpponentSlotProps {
 
 // ─── OpponentSlot ─────────────────────────────────────────────────────────────
 
+interface OpponentSlotPropsExtended extends OpponentSlotProps {
+  isFlashing?: boolean;
+  visibleCardCount?: number;
+}
+
 function OpponentSlot({
   hand,
   name,
   isCurrentTurn,
   hasOnCardsDeclaration,
   strikes,
-}: OpponentSlotProps) {
+  isFlashing = false,
+  visibleCardCount,
+}: OpponentSlotPropsExtended) {
   const liftAnim = useRef(new Animated.Value(0)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  // Timeout flash: red opacity pulse, 2 cycles, 400ms each
+  const flashAnim = useRef(new Animated.Value(0)).current;
+  const flashLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (isFlashing) {
+      flashLoopRef.current?.stop();
+      flashAnim.setValue(0);
+      const flash = Animated.sequence([
+        Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 0, duration: 200, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 0, duration: 200, useNativeDriver: false }),
+      ]);
+      flashLoopRef.current = flash;
+      flash.start();
+    } else {
+      flashLoopRef.current?.stop();
+      flashAnim.setValue(0);
+    }
+    return () => { flashLoopRef.current?.stop(); };
+  }, [isFlashing]);
+
+  const flashBorderColor = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['transparent', '#ef5350'],
+  });
+
+  const flashBg = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['transparent', 'rgba(239,83,80,0.18)'],
+  });
 
   useEffect(() => {
     if (isCurrentTurn && hand.length > 0) {
@@ -60,11 +105,18 @@ function OpponentSlot({
     return () => { loopRef.current?.stop(); };
   }, [isCurrentTurn, hand.length]);
 
-  const displayCount = Math.min(hand.length, 5);
+  const effectiveCount = visibleCardCount !== undefined ? visibleCardCount : hand.length;
+  const displayCount = Math.min(effectiveCount, 5);
   const midIndex = Math.floor(displayCount / 2);
 
   return (
-    <View style={[styles.opponentSlot, isCurrentTurn && styles.opponentSlotActive]}>
+    <Animated.View
+      style={[
+        styles.opponentSlot,
+        isCurrentTurn && styles.opponentSlotActive,
+        { borderColor: isFlashing ? flashBorderColor : (isCurrentTurn ? '#ffc107' : 'transparent'), backgroundColor: isFlashing ? flashBg : undefined },
+      ]}
+    >
       <View style={styles.opponentNameRow}>
         {strikes >= 1 && (
           <View style={styles.strikeIcon}>
@@ -99,9 +151,9 @@ function OpponentSlot({
       </View>
 
       <View style={styles.cardCountBadge}>
-        <Text style={styles.cardCountText}>{hand.length}</Text>
+        <Text style={styles.cardCountText}>{effectiveCount}</Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -137,6 +189,10 @@ export function GameBoard({
   selectionDisabled,
   playerNames = {},
   message,
+  flashingPlayerId = null,
+  isDealing = false,
+  dealtCardCounts,
+  deckCountOverride,
 }: GameBoardProps) {
   if (!gameState || !gameState.players) {
     return (
@@ -149,6 +205,7 @@ export function GameBoard({
   }
 
   const { players, discard, deck, currentPlayerIndex, activeSuit } = gameState;
+  const displayDeckCount = deckCountOverride != null ? deckCountOverride : deck.length;
 
   const myPlayer = players.find((p) => p.id === myPlayerId);
   const opponents = players.filter((p) => p.id !== myPlayerId);
@@ -169,6 +226,8 @@ export function GameBoard({
             isCurrentTurn={opp.id === currentPlayer?.id}
             hasOnCardsDeclaration={gameState.onCardsDeclarations.includes(opp.id)}
             strikes={gameState.timeoutStrikes[opp.id] ?? 0}
+            isFlashing={flashingPlayerId === opp.id}
+            visibleCardCount={dealtCardCounts ? (dealtCardCounts[opp.id] ?? 0) : undefined}
           />
         ))}
       </View>
@@ -176,7 +235,7 @@ export function GameBoard({
       {/* ── Centre table ──────────────────────────────────────────────── */}
       <View style={styles.centre}>
         <View style={styles.pileGroup}>
-          <DrawPileView count={deck.length} />
+          <DrawPileView count={displayDeckCount} />
           <Text style={styles.pileLabel}>Draw</Text>
         </View>
 
@@ -212,7 +271,8 @@ export function GameBoard({
             selectedCards={selectedCards}
             onCardSelect={handleCardSelect ? (c) => handleCardSelect(c) : undefined}
             onClearSelection={onClearSelection}
-            isMyTurn={isMyTurn}
+            isMyTurn={isMyTurn && !isDealing}
+            visibleCardCount={dealtCardCounts ? (dealtCardCounts[myPlayerId] ?? 0) : undefined}
           />
         ) : null}
       </View>

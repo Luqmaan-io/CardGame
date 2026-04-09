@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   PanResponder,
   PanResponderGestureState,
   View,
@@ -48,8 +49,6 @@ function getRotation(index: number, n: number): number {
 }
 
 // ─── Shift computation ────────────────────────────────────────────────────────
-// Returns pixel shift for card at `cardIdx` when card at `dragIdx`
-// hovers over `hoverIdx`. Positive = right, negative = left.
 
 function targetShift(
   cardIdx: number,
@@ -57,9 +56,7 @@ function targetShift(
   hoverIdx: number,
   spacing: number
 ): number {
-  // Position in "drag card removed" list
   const r = cardIdx > dragIdx ? cardIdx - 1 : cardIdx;
-  // Position when gap opens at hoverIdx
   const finalPos = r >= hoverIdx ? r + 1 : r;
   return (finalPos - cardIdx) * spacing;
 }
@@ -72,7 +69,6 @@ function cardAtLocalX(
   startX: number,
   spacing: number
 ): number {
-  // Search right-to-left so the visually top card (higher zIndex = higher index) wins
   for (let i = n - 1; i >= 0; i--) {
     const x = startX + i * spacing;
     if (localX >= x && localX <= x + CARD_W) return i;
@@ -102,6 +98,9 @@ interface HandProps {
   selectedCards?: CardType[];
   faceDown?: boolean;
   isMyTurn?: boolean;
+  // When provided, only render the first visibleCardCount cards.
+  // Used during the deal animation to reveal cards one by one.
+  visibleCardCount?: number;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -114,14 +113,18 @@ export function Hand({
   selectedCards = [],
   faceDown = false,
   isMyTurn = true,
+  visibleCardCount,
 }: HandProps) {
   const { width: screenWidth } = useWindowDimensions();
 
-  // ── Local card order (user can reorder; persists cosmetically) ───────────────
+  // ── Deal mode vs normal mode ──────────────────────────────────────────────
+  // dealMode: visibleCardCount is defined — slice cards and disable drag
+  const isDealMode = visibleCardCount !== undefined;
+
+  // ── Local card order (user can reorder; persists cosmetically) ───────────
   const [localCards, setLocalCards] = useState<CardType[]>(cards);
 
   useEffect(() => {
-    // Preserve user ordering. Remove played cards. Append newly drawn cards.
     setLocalCards((prev) => {
       const kept = prev.filter((c) =>
         cards.some((nc) => nc.rank === c.rank && nc.suit === c.suit)
@@ -133,23 +136,54 @@ export function Hand({
     });
   }, [cards]);
 
-  // ── Drag visual state ─────────────────────────────────────────────────────────
+  // In deal mode use the sliced array; in normal mode use localCards.
+  const renderCards = isDealMode
+    ? cards.slice(0, visibleCardCount)
+    : localCards;
+
+  // ── Slide-in animation for newly dealt cards ───────────────────────────────
+  // Tracks the index of the most recently revealed card so we can animate it.
+  const [newCardIdx, setNewCardIdx] = useState<number | null>(null);
+  const prevVisibleCountRef = useRef(0);
+  // One animated value reused for each new card that arrives.
+  const newCardSlideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isDealMode) {
+      prevVisibleCountRef.current = 0;
+      return;
+    }
+    const count = visibleCardCount ?? 0;
+    if (count > prevVisibleCountRef.current) {
+      const idx = count - 1;
+      setNewCardIdx(idx);
+      newCardSlideAnim.setValue(50);
+      Animated.timing(newCardSlideAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+        easing: Easing.out(Easing.quad),
+      }).start(() => setNewCardIdx(null));
+    }
+    prevVisibleCountRef.current = count;
+  }, [visibleCardCount, isDealMode]);
+
+  // ── Drag visual state ─────────────────────────────────────────────────────
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
 
-  // Position of the floating dragged card in container-local coordinates
   const dragCardX = useRef(new Animated.Value(0)).current;
   const dragCardY = useRef(new Animated.Value(0)).current;
   const dragScale = useRef(new Animated.Value(1)).current;
 
-  // Per-card horizontal shift animations (one per card slot)
   const shiftAnims = useRef<Animated.Value[]>([]);
-  while (shiftAnims.current.length < localCards.length) {
+  // Grow shift anims array to cover all currently-rendered cards
+  while (shiftAnims.current.length < renderCards.length) {
     shiftAnims.current.push(new Animated.Value(0));
   }
 
-  // ── Stable refs so PanResponder callbacks always read current values ──────────
-  const localCardsRef = useRef(localCards);
-  localCardsRef.current = localCards;
+  // ── Stable refs ────────────────────────────────────────────────────────────
+  const localCardsRef = useRef(renderCards);
+  localCardsRef.current = renderCards;
   const screenWidthRef = useRef(screenWidth);
   screenWidthRef.current = screenWidth;
   const isMyTurnRef = useRef(isMyTurn);
@@ -162,19 +196,20 @@ export function Hand({
   onClearSelectionRef.current = onClearSelection;
   const selectedCardsRef = useRef(selectedCards);
   selectedCardsRef.current = selectedCards;
+  const isDealModeRef = useRef(isDealMode);
+  isDealModeRef.current = isDealMode;
   const containerPageXRef = useRef(0);
   const hoverIdxRef = useRef<number | null>(null);
 
-  // Internal drag session state
   const dragStateRef = useRef<{
     cardIndex: number;
     pressTime: number;
     isDragging: boolean;
-    origCardX: number; // container-local x of the card when hold began
+    origCardX: number;
     origCardY: number;
   } | null>(null);
 
-  // ── Pan handler functions (fresh closure assigned every render) ────────────────
+  // ── Pan handler functions ──────────────────────────────────────────────────
 
   const panHandlersRef = useRef({
     onGrant: (_gs: PanResponderGestureState) => {},
@@ -209,9 +244,10 @@ export function Hand({
     });
   }
 
-  // Reassign fresh handlers every render — PanResponder delegates to this ref
   panHandlersRef.current = {
     onGrant(gestureState) {
+      // Block all interaction during deal
+      if (isDealModeRef.current) return;
       const n = localCardsRef.current.length;
       if (n <= 1 || faceDownRef.current) return;
 
@@ -229,16 +265,15 @@ export function Hand({
     },
 
     onMove(gestureState) {
+      if (isDealModeRef.current) return;
       const ds = dragStateRef.current;
       if (!ds) return;
 
       if (!ds.isDragging) {
         if (Date.now() - ds.pressTime < DRAG_DELAY_MS) return;
 
-        // Enter drag mode
         ds.isDragging = true;
 
-        // Clear selection before drag starts
         if (selectedCardsRef.current.length > 0) {
           onClearSelectionRef.current?.();
         }
@@ -265,11 +300,9 @@ export function Hand({
         return;
       }
 
-      // Update dragged card position (dx/dy are screen deltas, same unit as container coords)
       dragCardX.setValue(ds.origCardX + gestureState.dx);
       dragCardY.setValue(ds.origCardY + gestureState.dy - DRAG_LIFT);
 
-      // Recompute hover index
       const { spacing, startX } = computeLayout(
         localCardsRef.current.length,
         screenWidthRef.current
@@ -283,12 +316,12 @@ export function Hand({
     },
 
     onRelease(_gestureState) {
+      if (isDealModeRef.current) return;
       const ds = dragStateRef.current;
       dragStateRef.current = null;
       if (!ds) return;
 
       if (!ds.isDragging) {
-        // Treat as tap (generous 500ms window for slow taps)
         const elapsed = Date.now() - ds.pressTime;
         if (
           elapsed < 500 &&
@@ -302,7 +335,6 @@ export function Hand({
         return;
       }
 
-      // Drop: reorder local cards
       const fromIdx = ds.cardIndex;
       const toIdx = hoverIdxRef.current ?? fromIdx;
       const next = [...localCardsRef.current];
@@ -325,7 +357,6 @@ export function Hand({
     },
   };
 
-  // ── PanResponder (created once; delegates to panHandlersRef) ─────────────────
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -338,9 +369,9 @@ export function Hand({
 
   const containerRef = useRef<View>(null);
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
 
-  const n = localCards.length;
+  const n = renderCards.length;
   const { spacing, startX } = computeLayout(n, screenWidth);
 
   function inValidPlay(card: CardType): boolean {
@@ -353,7 +384,7 @@ export function Hand({
     return selectedCards.some((c) => c.rank === card.rank && c.suit === card.suit);
   }
 
-  const draggingCard = draggingIdx !== null ? localCards[draggingIdx] : null;
+  const draggingCard = draggingIdx !== null ? renderCards[draggingIdx] : null;
 
   return (
     <View
@@ -366,7 +397,7 @@ export function Hand({
       }}
       {...panResponder.panHandlers}
     >
-      {localCards.map((card, index) => {
+      {renderCards.map((card, index) => {
         const isDragging = index === draggingIdx;
         const rot = getRotation(index, n);
         const yPos =
@@ -374,8 +405,10 @@ export function Hand({
         const xPos = startX + index * spacing;
         const shiftAnim = shiftAnims.current[index] ?? new Animated.Value(0);
 
+        // Apply slide-in translateX for the most recently dealt card
+        const isNewCard = index === newCardIdx;
+
         if (isDragging) {
-          // Ghost placeholder at original position while card is being dragged
           return (
             <View
               key={`${card.rank}-${card.suit}-${index}`}
@@ -405,7 +438,7 @@ export function Hand({
                 top: yPos,
                 zIndex: index,
                 transform: [
-                  { translateX: shiftAnim },
+                  { translateX: isNewCard ? newCardSlideAnim : shiftAnim },
                   { rotate: `${rot}deg` },
                 ],
               },
@@ -415,8 +448,8 @@ export function Hand({
               card={card}
               faceDown={faceDown}
               isSelected={isSelected(card)}
-              isValid={!faceDown && inValidPlay(card)}
-              isDisabled={!isMyTurn}
+              isValid={!faceDown && inValidPlay(card) && !isDealMode}
+              isDisabled={!isMyTurn || isDealMode}
             />
           </Animated.View>
         );

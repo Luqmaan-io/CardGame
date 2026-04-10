@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 
@@ -16,9 +16,15 @@ function AuthGate() {
   const { session, isGuest, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (isLoading) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;  // wait until layout is mounted
+    if (isLoading) return;  // wait until auth state is known
 
     const inAuthScreen = segments[0] === 'auth';
     const isAuthed = !!session || isGuest;
@@ -28,7 +34,7 @@ function AuthGate() {
     } else if (isAuthed && inAuthScreen) {
       router.replace('/');
     }
-  }, [session, isGuest, isLoading, segments]);
+  }, [mounted, isLoading, session, isGuest, segments]);
 
   return null;
 }

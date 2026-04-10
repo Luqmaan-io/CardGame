@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { Platform } from 'react-native'
 import { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
@@ -36,19 +37,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
-      else setIsLoading(false)
+      if (session?.user) {
+        setSession(session)
+        setUser(session.user)
+        fetchProfile(session.user.id)
+      } else {
+        // Check for stored guest session on web
+        if (Platform.OS === 'web') {
+          const stored = localStorage.getItem('guest_profile')
+          if (stored) {
+            try {
+              const guestProfile = JSON.parse(stored)
+              setIsGuest(true)
+              setProfile(guestProfile)
+            } catch {}
+          }
+        }
+        setIsLoading(false)
+      }
     })
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth event:', event, !!session)
+
         setSession(session)
         setUser(session?.user ?? null)
-        if (session?.user) await fetchProfile(session.user.id)
-        else {
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Clear guest state if they just signed in
+          setIsGuest(false)
+          await fetchProfile(session.user.id)
+        } else if (event === 'SIGNED_OUT') {
+          setProfile(null)
+          setIsGuest(false)
+          setIsLoading(false)
+        } else if (!session) {
           setProfile(null)
           setIsLoading(false)
         }
@@ -93,21 +118,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    if (Platform.OS === 'web') {
+      localStorage.removeItem('guest_profile')
+    }
     setIsGuest(false)
     setProfile(null)
     await supabase.auth.signOut()
   }
 
   const continueAsGuest = (username: string) => {
-    setIsGuest(true)
-    setProfile({
+    const guestProfile = {
       id: `guest_${Date.now()}`,
       username,
       avatarId: 'avatar_01',
       friendCode: '',
       colourHex: '#378ADD',
       isGuest: true,
-    })
+    }
+
+    if (Platform.OS === 'web') {
+      localStorage.setItem('guest_profile', JSON.stringify(guestProfile))
+    }
+
+    setIsGuest(true)
+    setProfile(guestProfile)
     setIsLoading(false)
   }
 

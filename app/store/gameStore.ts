@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Socket } from 'socket.io-client';
 import type { GameState, Card } from '../../engine/types';
+import type { GameResult } from '../lib/recordGameStats';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
 
@@ -28,6 +29,7 @@ interface GameStore {
   error: string | null;
   pendingTimeoutNotification: string | null;
   connectionState: ConnectionState;
+  pendingGameStats: GameResult | null;
 
   setGameState: (state: GameState) => void;
   setError: (error: string | null) => void;
@@ -41,6 +43,7 @@ interface GameStore {
   reset: () => void;
   setPendingTimeoutNotification: (msg: string | null) => void;
   setConnectionState: (state: ConnectionState) => void;
+  setPendingGameStats: (stats: GameResult | null) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -54,11 +57,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   error: null,
   pendingTimeoutNotification: null,
   connectionState: 'connecting',
+  pendingGameStats: null,
 
   setGameState: (state) => set({ gameState: state, selectedCards: [] }),
   setError: (error) => set({ error }),
   setPendingTimeoutNotification: (msg) => set({ pendingTimeoutNotification: msg }),
   setConnectionState: (state) => set({ connectionState: state }),
+  setPendingGameStats: (stats) => set({ pendingGameStats: stats }),
 
   setRoom: (roomId, playerId) => set({ roomId, myPlayerId: playerId }),
 

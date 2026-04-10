@@ -108,12 +108,12 @@ function getPlayerName(playerId: string, room: Room): string {
 }
 
 export function registerGameHandlers(io: Server, socket: Socket): void {
-  // room:create — { maxPlayers: 2 | 3 | 4 }
-  socket.on('room:create', (data: { maxPlayers: 2 | 3 | 4; name: string }) => {
+  // room:create — { maxPlayers: 2 | 3 | 4, name, userId?, colourHex? }
+  socket.on('room:create', (data: { maxPlayers: 2 | 3 | 4; name: string; userId?: string; colourHex?: string }) => {
     const maxPlayers = data.maxPlayers ?? 4;
     const name = data.name ?? 'Player';
     const room = createRoom(maxPlayers);
-    const joined = joinRoom(room.id, socket.id, name);
+    const joined = joinRoom(room.id, socket.id, name, data.userId, data.colourHex);
     if (joined instanceof Error) {
       socket.emit('game:error', { message: joined.message });
       return;
@@ -122,9 +122,9 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     socket.emit('room:joined', { roomId: joined.id, room: joined });
   });
 
-  // room:join — { roomId, name }
-  socket.on('room:join', (data: { roomId: string; name: string }) => {
-    const result = joinRoom(data.roomId, socket.id, data.name);
+  // room:join — { roomId, name, userId?, colourHex? }
+  socket.on('room:join', (data: { roomId: string; name: string; userId?: string; colourHex?: string }) => {
+    const result = joinRoom(data.roomId, socket.id, data.name, data.userId, data.colourHex);
     if (result instanceof Error) {
       socket.emit('game:error', { message: result.message });
       return;

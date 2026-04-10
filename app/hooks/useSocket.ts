@@ -146,14 +146,14 @@ export function useSocket() {
     s?.emit('game:draw', { roomId });
   }
 
-  function createRoom(maxPlayers: 2 | 3 | 4 = 4) {
+  function createRoom(maxPlayers: 2 | 3 | 4 = 4, userId?: string, colourHex?: string) {
     const { socket: s, playerName } = useGameStore.getState();
-    s?.emit('room:create', { maxPlayers, name: playerName });
+    s?.emit('room:create', { maxPlayers, name: playerName, userId, colourHex });
   }
 
-  function joinRoom(roomId: string) {
+  function joinRoom(roomId: string, userId?: string, colourHex?: string) {
     const { socket: s, playerName } = useGameStore.getState();
-    s?.emit('room:join', { roomId, name: playerName });
+    s?.emit('room:join', { roomId, name: playerName, userId, colourHex });
   }
 
   function startGame(roomId: string) {

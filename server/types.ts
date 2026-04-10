@@ -5,6 +5,7 @@ export interface RoomPlayer {
   playerId: string;
   name: string;
   colourHex: string;
+  userId?: string;
 }
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished';

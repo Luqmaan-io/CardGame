@@ -24,6 +24,8 @@ import { measurePosition, centreOf } from '../utils/measurePosition';
 import { getValidPlays } from '../../engine/ai';
 import { isValidPlay } from '../../engine/validation';
 import type { Card, GameState, Suit } from '../../engine/types';
+import { useAuth } from '../context/AuthContext';
+import { recordGameStats } from '../lib/recordGameStats';
 
 // ─── Power card ranks ─────────────────────────────────────────────────────────
 
@@ -120,6 +122,26 @@ export default function GameScreen() {
   // ── How to play modal ─────────────────────────────────────────────────────
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const modalOpenedAtRef = useRef<number | null>(null);
+
+  // ── Auth context (for stats recording) ────────────────────────────────────
+  const { profile, isGuest } = useAuth();
+
+  // ── Game stats tracking ────────────────────────────────────────────────────
+  const gameStatsRef = useRef({
+    turnsPlayed: 0,
+    maxCardsHeld: 0,
+    cardsDrawn: 0,
+    biggestPickup: 0,
+    blackJacksReceived: 0,
+    blackJacksCountered: 0,
+    twosStacked: 0,
+    twosReceived: 0,
+    falseOnCardsCount: 0,
+    correctOnCardsCount: 0,
+    timedOutCount: 0,
+    wasKicked: false,
+    lastSuitWonWith: undefined as string | undefined,
+  });
 
   // ── On-cards declaration window (Fix 2) ────────────────────────────────────
   const [showOnCardsWindow, setShowOnCardsWindow] = useState(false);
@@ -568,6 +590,76 @@ export default function GameScreen() {
     }
   }, [gameState?.phase, gameState?.winnerId]);
 
+  // ── Stats: track turnsPlayed and maxCardsHeld ─────────────────────────────
+  const prevTurnPlayerRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!gameState || !gameEventsArmedRef.current) return;
+    const current = gameState.players[gameState.currentPlayerIndex];
+    // When the current player changes away from me — that turn is done
+    if (prevTurnPlayerRef.current === myPlayerId && current?.id !== myPlayerId) {
+      gameStatsRef.current.turnsPlayed++;
+    }
+    prevTurnPlayerRef.current = current?.id ?? null;
+
+    // Track max cards held
+    const myPlayer = gameState.players.find((p) => p.id === myPlayerId);
+    if (myPlayer) {
+      gameStatsRef.current.maxCardsHeld = Math.max(gameStatsRef.current.maxCardsHeld, myPlayer.hand.length);
+    }
+  }, [gameState?.currentPlayerIndex, gameState]);
+
+  // ── Stats: track timeout strikes and kicks on my player ───────────────────
+  const prevMyStrikesRef = useRef(0);
+  useEffect(() => {
+    if (!gameState || !gameEventsArmedRef.current) return;
+    const myStrikes = gameState.timeoutStrikes[myPlayerId] ?? 0;
+    if (myStrikes > prevMyStrikesRef.current) {
+      gameStatsRef.current.timedOutCount++;
+      if (myStrikes >= 3) gameStatsRef.current.wasKicked = true;
+    }
+    prevMyStrikesRef.current = myStrikes;
+  }, [gameState?.timeoutStrikes]);
+
+  // ── Stats: record when game ends ──────────────────────────────────────────
+  const statsRecordedRef = useRef(false);
+  useEffect(() => {
+    if (gameState?.phase !== 'game-over') return;
+    if (statsRecordedRef.current) return;
+    if (!profile || isGuest) return;
+    statsRecordedRef.current = true;
+
+    const won = gameState.winnerId === myPlayerId;
+    // Best-effort: find winning suit from last discard if we won
+    const winCard = won ? gameState.discard[gameState.discard.length - 1] : undefined;
+    if (winCard) gameStatsRef.current.lastSuitWonWith = winCard.suit;
+
+    // Find opponent (first non-me player)
+    const opponent = gameState.players.find((p) => p.id !== myPlayerId);
+    const opponentUsername = isLocalMode
+      ? localPlayerNames[opponent?.id ?? ''] ?? 'AI'
+      : undefined; // online: we don't have opponent userId easily, skip nemesis in v1
+
+    recordGameStats({
+      userId: profile.id,
+      isGuest: false,
+      won,
+      turnsPlayed: gameStatsRef.current.turnsPlayed,
+      maxCardsHeld: gameStatsRef.current.maxCardsHeld,
+      cardsDrawn: gameStatsRef.current.cardsDrawn,
+      biggestPickup: gameStatsRef.current.biggestPickup,
+      blackJacksReceived: gameStatsRef.current.blackJacksReceived,
+      blackJacksCountered: gameStatsRef.current.blackJacksCountered,
+      twosStacked: gameStatsRef.current.twosStacked,
+      twosReceived: gameStatsRef.current.twosReceived,
+      falseOnCardsCount: gameStatsRef.current.falseOnCardsCount,
+      correctOnCardsCount: gameStatsRef.current.correctOnCardsCount,
+      timedOutCount: gameStatsRef.current.timedOutCount,
+      wasKicked: gameStatsRef.current.wasKicked,
+      opponentUsername,
+      suitWonWith: gameStatsRef.current.lastSuitWonWith,
+    }).catch(() => { /* best-effort — don't block UI */ });
+  }, [gameState?.phase]);
+
   // ── Close on-cards window + reset auto-draw when turn is no longer mine ──
   useEffect(() => {
     if (!gameState) return;
@@ -758,6 +850,10 @@ export default function GameScreen() {
       ]);
     });
 
+    // Track power card counters (lastCard is already declared above)
+    if (lastCard && gameState!.pendingPickupType === '2' && lastCard.rank === '2') gameStatsRef.current.twosStacked++;
+    if (lastCard && gameState!.pendingPickupType === 'jack' && lastCard.rank === 'J' && (lastCard.suit === 'hearts' || lastCard.suit === 'diamonds')) gameStatsRef.current.blackJacksCountered++;
+
     if (isLocalMode) {
       try { humanPlay(cards); } catch { /* invalid */ }
     } else {
@@ -797,6 +893,13 @@ export default function GameScreen() {
       ]);
     });
 
+    // Track power card counters (Ace plays with declared suit)
+    const lastCard2 = cards[cards.length - 1];
+    if (lastCard2) {
+      if (gameState!.pendingPickupType === '2' && lastCard2.rank === '2') gameStatsRef.current.twosStacked++;
+      if (gameState!.pendingPickupType === 'jack' && lastCard2.rank === 'J' && (lastCard2.suit === 'hearts' || lastCard2.suit === 'diamonds')) gameStatsRef.current.blackJacksCountered++;
+    }
+
     if (isLocalMode) {
       try { humanPlay(cards, suit); } catch { /* invalid */ }
     } else {
@@ -811,6 +914,16 @@ export default function GameScreen() {
   // handleDrawFn is the underlying draw — also used by auto-draw countdown
   function handleDrawFn() {
     haptic('light');
+
+    // Track draw stats before the state changes
+    const drawCount = gameState!.pendingPickup > 0 ? gameState!.pendingPickup : 1;
+    gameStatsRef.current.cardsDrawn += drawCount;
+    if (drawCount > 1) {
+      gameStatsRef.current.biggestPickup = Math.max(gameStatsRef.current.biggestPickup, drawCount);
+      if (gameState!.pendingPickupType === 'jack') gameStatsRef.current.blackJacksReceived++;
+      else if (gameState!.pendingPickupType === '2') gameStatsRef.current.twosReceived++;
+    }
+
     if (isLocalMode) {
       humanDraw();
       // Auto-advance turn after draw animation
@@ -846,9 +959,11 @@ export default function GameScreen() {
     if (isLocalMode) {
       const isValid = humanDeclareOnCards(); // advances turn internally
       if (isValid) {
+        gameStatsRef.current.correctOnCardsCount++;
         const humanName = localPlayerNames[localMyPlayerId] ?? 'You';
         addToast(`${humanName} is on cards!`);
       } else {
+        gameStatsRef.current.falseOnCardsCount++;
         addToast("You're not on cards — 2 cards added to your hand");
         haptic('error');
       }

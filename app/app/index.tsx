@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useSocket } from '../hooks/useSocket';
 import { useGameStore } from '../store/gameStore';
 import { HowToPlayModal } from '../components/HowToPlayModal';
+import { useAuth } from '../context/AuthContext';
 // Subtle animated waiting indicator — three dots that cycle 1→2→3→1
 function PulsingDots() {
   const [step, setStep] = useState(0);
@@ -33,10 +34,12 @@ export default function HomeScreen() {
   const { createRoom, joinRoom, startGame } = useSocket();
   const { setPlayerName, roomId, roomInfo, myPlayerId, gameState, error, setError } =
     useGameStore();
+  const { profile, isGuest } = useAuth();
+
   // Mode selector
   const [mode, setMode] = useState<Mode>('none');
 
-  // Online flow state
+  // Online flow state — pre-filled from profile
   const [createName, setCreateName] = useState('');
   const [joinName, setJoinName] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -44,9 +47,18 @@ export default function HomeScreen() {
   const [lastAction, setLastAction] = useState<'create' | 'join' | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // AI flow state
+  // AI flow state — pre-filled from profile
   const [aiName, setAiName] = useState('');
   const [aiCount, setAiCount] = useState<1 | 2 | 3>(1);
+
+  // Pre-fill name fields from profile whenever profile loads
+  useEffect(() => {
+    if (profile?.username) {
+      setCreateName(profile.username);
+      setJoinName(profile.username);
+      setAiName(profile.username);
+    }
+  }, [profile?.username]);
 
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
@@ -69,7 +81,7 @@ export default function HomeScreen() {
     setPlayerName(createName.trim());
     setLastAction('create');
     setError(null);
-    createRoom(maxPlayers);
+    createRoom(maxPlayers, profile?.id, profile?.colourHex);
   }
 
   function handleJoin() {
@@ -77,7 +89,7 @@ export default function HomeScreen() {
     setPlayerName(joinName.trim());
     setLastAction('join');
     setError(null);
-    joinRoom(joinCode.trim().toUpperCase());
+    joinRoom(joinCode.trim().toUpperCase(), profile?.id, profile?.colourHex);
   }
 
   async function handleCopy() {
@@ -97,7 +109,13 @@ export default function HomeScreen() {
     if (!aiName.trim()) return;
     router.replace({
       pathname: '/game',
-      params: { mode: 'local', playerName: aiName.trim(), aiCount: String(aiCount) },
+      params: {
+        mode: 'local',
+        playerName: aiName.trim(),
+        aiCount: String(aiCount),
+        userId: profile?.id ?? '',
+        colourHex: profile?.colourHex ?? '#378ADD',
+      },
     });
   }
 
@@ -183,7 +201,29 @@ export default function HomeScreen() {
         contentContainerStyle={styles.lobbyScroll}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Card Game</Text>
+        {/* Guest banner */}
+        {isGuest && (
+          <View style={styles.guestBanner}>
+            <Text style={styles.guestBannerText}>
+              Playing as guest — create an account to save your stats
+            </Text>
+            <TouchableOpacity onPress={() => router.push('/auth')}>
+              <Text style={styles.guestBannerLink}>Sign up</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Title row with profile icon */}
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Card Game</Text>
+          <TouchableOpacity style={styles.profileBtn} onPress={() => router.push('/profile')}>
+            <View style={[styles.profileAvatar, { backgroundColor: profile?.colourHex ?? '#378ADD' }]}>
+              <Text style={styles.profileAvatarText}>
+                {(profile?.username ?? '?').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
 
         {/* ── Mode selector ── */}
         <View style={styles.modeRow}>
@@ -386,14 +426,61 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
   },
 
-  // ── Title ──────────────────────────────────────────────────
+  // ── Guest banner ──────────────────────────────────────────
+  guestBanner: {
+    backgroundColor: '#1a2a1a',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2e7d32',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 8,
+  },
+  guestBannerText: {
+    color: '#9e9e9e',
+    fontSize: 12,
+    flex: 1,
+  },
+  guestBannerLink: {
+    color: '#4caf50',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // ── Title row ─────────────────────────────────────────────
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+    position: 'relative',
+  },
   title: {
     fontSize: 38,
     fontWeight: '800',
     color: '#ffffff',
     textAlign: 'center',
     letterSpacing: 1,
-    marginBottom: 32,
+  },
+  profileBtn: {
+    position: 'absolute',
+    right: 0,
+  },
+  profileAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatarText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
   },
 
   // ── Mode selector ─────────────────────────────────────────

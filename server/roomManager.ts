@@ -22,7 +22,9 @@ export function createRoom(maxPlayers: 2 | 3 | 4): Room {
 export function joinRoom(
   roomId: string,
   socketId: string,
-  playerName: string
+  playerName: string,
+  userId?: string,
+  preferredColourHex?: string
 ): Room | Error {
   const room = rooms.get(roomId);
   if (!room) return new Error(`Room ${roomId} not found`);
@@ -30,11 +32,16 @@ export function joinRoom(
   if (room.players.length >= room.maxPlayers) return new Error('Room is full');
 
   const playerId = `player-${room.players.length + 1}`;
-  const takenColourIds = room.players
-    .map((p) => PLAYER_COLOURS.find((c) => c.hex === p.colourHex)?.id ?? '')
-    .filter(Boolean);
-  const colour = assignRandomColour(takenColourIds);
-  const player: RoomPlayer = { socketId, playerId, name: playerName, colourHex: colour.hex };
+  let colourHex: string;
+  if (preferredColourHex) {
+    colourHex = preferredColourHex;
+  } else {
+    const takenColourIds = room.players
+      .map((p) => PLAYER_COLOURS.find((c) => c.hex === p.colourHex)?.id ?? '')
+      .filter(Boolean);
+    colourHex = assignRandomColour(takenColourIds).hex;
+  }
+  const player: RoomPlayer = { socketId, playerId, name: playerName, colourHex, userId };
   const updated: Room = { ...room, players: [...room.players, player] };
   rooms.set(roomId, updated);
   return updated;

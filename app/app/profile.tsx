@@ -32,9 +32,11 @@ type Stats = {
   times_false_on_cards: number
   times_kicked_timeout: number
   longest_game_turns: number
+  nemesis_id: string | null
   nemesis_username: string | null
   nemesis_loss_count: number
   nemesis_avatar_id: string | null
+  victim_id: string | null
   victim_username: string | null
   victim_win_count: number
   victim_avatar_id: string | null
@@ -104,6 +106,8 @@ export default function ProfileScreen() {
   const [newUsername, setNewUsername] = useState('')
   const [copied, setCopied] = useState(false)
   const [pickerVisible, setPickerVisible] = useState(false)
+  const [nemesisAvatar, setNemesisAvatar] = useState<{ avatarId: string; colourHex: string } | null>(null)
+  const [victimAvatar, setVictimAvatar] = useState<{ avatarId: string; colourHex: string } | null>(null)
 
   useEffect(() => {
     if (!profile || isGuest) return
@@ -116,6 +120,32 @@ export default function ProfileScreen() {
         if (data) setStats(data as Stats)
       })
   }, [profile?.id, isGuest])
+
+  useEffect(() => {
+    const id = stats?.nemesis_id
+    if (!id) return
+    supabase
+      .from('profiles')
+      .select('avatar_id, colour_hex')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        if (data) setNemesisAvatar({ avatarId: data.avatar_id, colourHex: data.colour_hex })
+      })
+  }, [stats?.nemesis_id])
+
+  useEffect(() => {
+    const id = stats?.victim_id
+    if (!id) return
+    supabase
+      .from('profiles')
+      .select('avatar_id, colour_hex')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        if (data) setVictimAvatar({ avatarId: data.avatar_id, colourHex: data.colour_hex })
+      })
+  }, [stats?.victim_id])
 
   async function handleCopyFriendCode() {
     if (!profile?.friendCode) return
@@ -284,9 +314,9 @@ export default function ProfileScreen() {
           {stats?.nemesis_username ? (
             <View style={styles.rivalCard}>
               <Avatar
-                avatarId={stats.nemesis_avatar_id ?? 'avatar_01'}
+                avatarId={nemesisAvatar?.avatarId ?? stats.nemesis_avatar_id ?? 'avatar_01'}
                 size={40}
-                colourHex="#ef5350"
+                colourHex={nemesisAvatar?.colourHex ?? '#ef5350'}
               />
               <View style={styles.rivalInfo}>
                 <Text style={styles.rivalRole}>Your nemesis</Text>
@@ -303,9 +333,9 @@ export default function ProfileScreen() {
           {stats?.victim_username ? (
             <View style={[styles.rivalCard, styles.rivalCardGreen]}>
               <Avatar
-                avatarId={stats.victim_avatar_id ?? 'avatar_01'}
+                avatarId={victimAvatar?.avatarId ?? stats.victim_avatar_id ?? 'avatar_01'}
                 size={40}
-                colourHex="#4caf50"
+                colourHex={victimAvatar?.colourHex ?? '#4caf50'}
               />
               <View style={styles.rivalInfo}>
                 <Text style={[styles.rivalRole, styles.rivalRoleGreen]}>Your victim</Text>

@@ -18,6 +18,39 @@ import { HowToPlayModal } from '../components/HowToPlayModal';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/Avatar';
 import AvatarPickerModal from '../components/AvatarPickerModal';
+import { useFriendRequests } from '../hooks/useFriendRequests';
+
+function FriendsIcon({ colour = '#616161' }: { colour?: string }) {
+  return (
+    <View style={{ width: 36, height: 36 }}>
+      {/* Back person head */}
+      <View style={{ position: 'absolute', right: 5, top: 4, width: 12, height: 12, borderRadius: 6, backgroundColor: colour, opacity: 0.55 }} />
+      {/* Back person body */}
+      <View style={{ position: 'absolute', right: 1, bottom: 5, width: 16, height: 10, borderRadius: 5, backgroundColor: colour, opacity: 0.55 }} />
+      {/* Front person head */}
+      <View style={{ position: 'absolute', left: 5, top: 6, width: 13, height: 13, borderRadius: 6.5, backgroundColor: colour }} />
+      {/* Front person body */}
+      <View style={{ position: 'absolute', left: 1, bottom: 4, width: 17, height: 11, borderRadius: 6, backgroundColor: colour }} />
+    </View>
+  )
+}
+
+function TrophyIcon({ colour = '#616161' }: { colour?: string }) {
+  return (
+    <View style={{ width: 36, height: 36, alignItems: 'center' }}>
+      {/* Cup with handles */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 5 }}>
+        <View style={{ width: 4, height: 10, backgroundColor: colour, borderTopLeftRadius: 2 }} />
+        <View style={{ width: 16, height: 14, backgroundColor: colour, borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }} />
+        <View style={{ width: 4, height: 10, backgroundColor: colour, borderTopRightRadius: 2 }} />
+      </View>
+      {/* Stem */}
+      <View style={{ width: 4, height: 5, backgroundColor: colour }} />
+      {/* Base */}
+      <View style={{ width: 16, height: 3, backgroundColor: colour, borderRadius: 1.5 }} />
+    </View>
+  )
+}
 // Subtle animated waiting indicator — three dots that cycle 1→2→3→1
 function PulsingDots() {
   const [step, setStep] = useState(0);
@@ -37,6 +70,7 @@ export default function HomeScreen() {
   const { setPlayerName, roomId, roomInfo, myPlayerId, gameState, error, setError } =
     useGameStore();
   const { profile, isGuest, updateProfile } = useAuth();
+  const { friendRequestCount } = useFriendRequests(profile?.id);
 
   // Mode selector
   const [mode, setMode] = useState<Mode>('none');
@@ -237,20 +271,40 @@ export default function HomeScreen() {
         <View style={styles.titleRow}>
           <Text style={styles.title}>Card Game</Text>
           <View style={styles.profileBtnGroup}>
-            <TouchableOpacity onPress={handleAvatarPress}>
-              <Avatar
-                avatarId={profile?.avatarId ?? 'avatar_01'}
-                size={36}
-                colourHex={profile?.colourHex ?? '#378ADD'}
-              />
-              {isGuest && (
-                <View style={styles.lockOverlay}>
-                  <Text style={styles.lockOverlayText}>🔒</Text>
-                </View>
-              )}
+            {/* Leaderboard button */}
+            <TouchableOpacity style={styles.navIconBtn} onPress={() => router.push('/leaderboard')}>
+              <TrophyIcon />
+              <Text style={styles.navIconLabel}>Ranks</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.profileTextBtn} onPress={() => router.push('/profile')}>
-              <Text style={styles.profileTextBtnText}>Profile</Text>
+
+            {/* Friends button with badge */}
+            <TouchableOpacity style={styles.navIconBtn} onPress={() => router.push('/friends')}>
+              <View>
+                <FriendsIcon />
+                {friendRequestCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{friendRequestCount > 9 ? '9+' : friendRequestCount}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.navIconLabel}>Friends</Text>
+            </TouchableOpacity>
+
+            {/* Avatar / Profile button */}
+            <TouchableOpacity style={styles.navIconBtn} onPress={handleAvatarPress}>
+              <View>
+                <Avatar
+                  avatarId={profile?.avatarId ?? 'avatar_01'}
+                  size={36}
+                  colourHex={profile?.colourHex ?? '#378ADD'}
+                />
+                {isGuest && (
+                  <View style={styles.lockOverlay}>
+                    <Text style={styles.lockOverlayText}>🔒</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.navIconLabel}>Profile</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -514,16 +568,35 @@ const styles = StyleSheet.create({
   profileBtnGroup: {
     position: 'absolute',
     right: 0,
-    alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 4,
   },
-  profileTextBtn: {
-    paddingHorizontal: 4,
+  navIconBtn: {
+    alignItems: 'center',
+    gap: 2,
   },
-  profileTextBtnText: {
+  navIconLabel: {
     color: '#616161',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    backgroundColor: '#ef5350',
+    borderRadius: 7,
+    minWidth: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
   },
   lockOverlay: {
     position: 'absolute',

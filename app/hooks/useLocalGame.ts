@@ -6,7 +6,7 @@ import { pickAIMove } from '../../engine/ai';
 import { isValidCombo } from '../../engine/validation';
 import { assignRandomColour } from '../../shared/colours';
 import { useGameStore } from '../store/gameStore';
-import { AVATAR_LIST } from '../assets/avatars';
+import { AVATAR_DATA } from '../assets/avatars/avatarData';
 import type { Card, GameState, Player, Suit } from '../../engine/types';
 
 export interface LocalGameParams {
@@ -57,7 +57,7 @@ export function useLocalGame() {
     takenColourIds.push(humanColour.id);
 
     // Assign unique random avatars — shuffle and pick without repeats where possible
-    const avatarIds = AVATAR_LIST.map((a) => a.id);
+    const avatarIds = AVATAR_DATA.map((a) => a.id);
     const shuffledAvatars = [...avatarIds].sort(() => Math.random() - 0.5);
     const humanUsedAvatar = humanAvatarId ?? shuffledAvatars[0]!;
     const aiAvatarPool = shuffledAvatars.filter((id) => id !== humanUsedAvatar);

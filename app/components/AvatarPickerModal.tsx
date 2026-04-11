@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native'
-import { AVATAR_LIST } from '../assets/avatars'
+import { AVATAR_DATA } from '../assets/avatars/avatarData'
 import Avatar from './Avatar'
 
 type AvatarPickerProps = {
@@ -48,7 +48,7 @@ export default function AvatarPickerModal({
           </View>
 
           <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
-            {AVATAR_LIST.map(({ id }) => {
+            {AVATAR_DATA.map(({ id }) => {
               const isSelected = id === currentAvatarId
               return (
                 <TouchableOpacity

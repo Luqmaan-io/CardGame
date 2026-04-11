@@ -1,6 +1,6 @@
 import React from 'react'
-import { View, StyleSheet } from 'react-native'
-import { AVATARS, AvatarId } from '../assets/avatars'
+import { View, Text, Platform } from 'react-native'
+import { AVATAR_DATA } from '../assets/avatars/avatarData'
 
 type AvatarProps = {
   avatarId: string
@@ -15,41 +15,56 @@ export default function Avatar({
   colourHex = '#378ADD',
   showRing = true,
 }: AvatarProps) {
-  const SvgAvatar = AVATARS[avatarId as AvatarId] ?? AVATARS['avatar_01']
-
+  const avatar = AVATAR_DATA.find(a => a.id === avatarId) ?? AVATAR_DATA[0]!
   const ringWidth = showRing ? 3 : 0
   const innerSize = size - ringWidth * 2
 
+  if (Platform.OS === 'web') {
+    return (
+      <div style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        border: showRing ? `${ringWidth}px solid ${colourHex}` : 'none',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        boxSizing: 'border-box',
+      } as React.CSSProperties}>
+        <svg
+          width={innerSize}
+          height={innerSize}
+          viewBox="0 0 200 200"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle cx="100" cy="100" r="100" fill={avatar.bgColour} />
+          <g dangerouslySetInnerHTML={{ __html: avatar.svg }} />
+        </svg>
+      </div>
+    )
+  }
+
+  // Native fallback — coloured circle with initial letter
   return (
-    <View
-      style={[
-        styles.ring,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderColor: showRing ? colourHex : 'transparent',
-          borderWidth: ringWidth,
-        },
-      ]}
-    >
-      <View
-        style={{
-          width: innerSize,
-          height: innerSize,
-          borderRadius: innerSize / 2,
-          overflow: 'hidden',
-        }}
-      >
-        <SvgAvatar width={innerSize} height={innerSize} />
-      </View>
+    <View style={{
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+      borderWidth: showRing ? ringWidth : 0,
+      borderColor: showRing ? colourHex : 'transparent',
+      backgroundColor: avatar.bgColour,
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <Text style={{
+        color: '#ffffff',
+        fontSize: size * 0.35,
+        fontWeight: '500',
+      }}>
+        {avatar.label[0]}
+      </Text>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  ring: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-})

@@ -9,6 +9,7 @@ export interface RoomPlayer {
   playerId: string;
   name: string;
   colourHex?: string;
+  avatarId?: string;
 }
 
 export interface RoomInfo {

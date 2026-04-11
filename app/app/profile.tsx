@@ -12,6 +12,8 @@ import {
 import { useRouter } from 'expo-router'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import Avatar from '../components/Avatar'
+import AvatarPickerModal from '../components/AvatarPickerModal'
 
 type Stats = {
   games_played: number
@@ -32,15 +34,63 @@ type Stats = {
   longest_game_turns: number
   nemesis_username: string | null
   nemesis_loss_count: number
+  nemesis_avatar_id: string | null
   victim_username: string | null
   victim_win_count: number
+  victim_avatar_id: string | null
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+type StatCardProps = {
+  label: string
+  value: string | number
+  colourHex: string
+  shame?: boolean
+}
+
+function StatCard({ label, value, colourHex, shame = false }: StatCardProps) {
+  const isEmpty = value === 0 || value === '0'
+  const display = isEmpty ? '—' : value
+  const valueColor = shame && !isEmpty ? '#ef5350' : colourHex
   return (
     <View style={styles.statCard}>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={[styles.statValue, { color: valueColor }]}>{display}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  )
+}
+
+type BannerVariant = 'amber' | 'green' | 'red' | 'orange' | 'muted'
+
+const BANNER_COLOURS: Record<BannerVariant, { bg: string }> = {
+  amber: { bg: '#2a1f00' },
+  green: { bg: '#0d2a14' },
+  red: { bg: '#2a0d0d' },
+  orange: { bg: '#2a1400' },
+  muted: { bg: '#1a1a1a' },
+}
+
+function SummaryBanner({ stats, colourHex }: { stats: Stats; colourHex: string }) {
+  let message = 'Keep playing to build your stats'
+  let variant: BannerVariant = 'muted'
+  const winRate = Math.round(stats.win_rate * 100)
+
+  if (winRate > 60 && stats.games_played >= 5) {
+    message = `You're on fire — ${winRate}% win rate`
+    variant = 'amber'
+  } else if (stats.current_streak > 3) {
+    message = `On a ${stats.current_streak} game winning streak!`
+    variant = 'green'
+  } else if (stats.nemesis_username) {
+    message = `Watch out for ${stats.nemesis_username}...`
+    variant = 'red'
+  } else if (stats.times_false_on_cards > stats.times_correct_on_cards && stats.times_false_on_cards > 0) {
+    message = 'Stop false alarming on cards!'
+    variant = 'orange'
+  }
+
+  return (
+    <View style={[styles.banner, { backgroundColor: BANNER_COLOURS[variant].bg }]}>
+      <Text style={[styles.bannerText, { color: colourHex }]}>{message}</Text>
     </View>
   )
 }
@@ -53,6 +103,7 @@ export default function ProfileScreen() {
   const [editingUsername, setEditingUsername] = useState(false)
   const [newUsername, setNewUsername] = useState('')
   const [copied, setCopied] = useState(false)
+  const [pickerVisible, setPickerVisible] = useState(false)
 
   useEffect(() => {
     if (!profile || isGuest) return
@@ -94,6 +145,14 @@ export default function ProfileScreen() {
     router.replace('/auth')
   }
 
+  async function handleAvatarSelect(avatarId: string) {
+    try {
+      await updateProfile({ avatarId })
+    } catch {
+      // ignore
+    }
+  }
+
   // ── Guest view ──────────────────────────────────────────────────────────────
   if (isGuest || !profile) {
     return (
@@ -106,16 +165,21 @@ export default function ProfileScreen() {
           <View style={styles.backBtn} />
         </View>
         <View style={styles.guestContainer}>
-          <View style={[styles.bigAvatar, { backgroundColor: profile?.colourHex ?? '#378ADD' }]}>
-            <Text style={styles.bigAvatarText}>
-              {(profile?.username ?? '?').charAt(0).toUpperCase()}
-            </Text>
+          <View style={styles.guestAvatarWrapper}>
+            <Avatar
+              avatarId={profile?.avatarId ?? 'avatar_01'}
+              size={88}
+              colourHex={profile?.colourHex ?? '#378ADD'}
+            />
+            <View style={styles.lockBadge}>
+              <Text style={styles.lockText}>🔒</Text>
+            </View>
           </View>
           <Text style={styles.guestUsername}>{profile?.username ?? 'Guest'}</Text>
           <View style={styles.guestCard}>
             <Text style={styles.guestCardTitle}>Playing as guest</Text>
             <Text style={styles.guestCardBody}>
-              Create an account to track your stats, build streaks, and see your nemesis.
+              Create an account to track your stats, build streaks, and choose your avatar.
             </Text>
             <TouchableOpacity
               style={styles.primaryBtn}
@@ -129,6 +193,7 @@ export default function ProfileScreen() {
     )
   }
 
+  const colourHex = profile.colourHex
   const winRateDisplay = stats ? `${Math.round(stats.win_rate * 100)}%` : '—'
 
   return (
@@ -145,11 +210,16 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Avatar + identity */}
         <View style={styles.identitySection}>
-          <View style={[styles.bigAvatar, { backgroundColor: profile.colourHex }]}>
-            <Text style={styles.bigAvatarText}>
-              {profile.username.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <TouchableOpacity onPress={() => setPickerVisible(true)} style={styles.avatarTouchable}>
+            <Avatar
+              avatarId={profile.avatarId}
+              size={96}
+              colourHex={colourHex}
+            />
+            <View style={[styles.editBadge, { backgroundColor: colourHex }]}>
+              <Text style={styles.editBadgeText}>✎</Text>
+            </View>
+          </TouchableOpacity>
 
           {editingUsername ? (
             <View style={styles.usernameEditRow}>
@@ -184,62 +254,70 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
-        {/* Stats grid */}
+        {/* Stats section */}
         <Text style={styles.sectionTitle}>Stats</Text>
 
+        {stats && <SummaryBanner stats={stats} colourHex={colourHex} />}
+
         <View style={styles.statsGrid}>
-          <StatCard label="Games played" value={stats?.games_played ?? 0} />
-          <StatCard label="Games won" value={stats?.games_won ?? 0} />
-          <StatCard label="Win rate" value={winRateDisplay} />
-          <StatCard label="Current streak" value={stats?.current_streak ?? 0} />
-          <StatCard label="Longest streak" value={stats?.longest_streak ?? 0} />
-          <StatCard label="Fastest win (turns)" value={stats?.fastest_win_turns ?? '—'} />
-          <StatCard label="Most cards held" value={stats?.most_cards_held ?? 0} />
-          <StatCard label="Biggest pickup" value={stats?.biggest_pickup ?? 0} />
-          <StatCard label="Black jacks received" value={stats?.times_picked_up_black_jack ?? 0} />
-          <StatCard label="Black jacks countered" value={stats?.times_countered_black_jack ?? 0} />
-          <StatCard label="2s stacked on others" value={stats?.times_stacked_two ?? 0} />
-          <StatCard label="2s stacked on you" value={stats?.times_victim_of_two ?? 0} />
-          <StatCard
-            label={'Correct "on cards"'}
-            value={stats?.times_correct_on_cards ?? 0}
-          />
-          <StatCard
-            label={`False "on cards"${stats && stats.times_false_on_cards > (stats.times_correct_on_cards) ? ' 😬' : ''}`}
-            value={stats?.times_false_on_cards ?? 0}
-          />
-          <StatCard label="Times kicked" value={stats?.times_kicked_timeout ?? 0} />
-          <StatCard label="Longest game (turns)" value={stats?.longest_game_turns ?? 0} />
+          <StatCard label="Games played" value={stats?.games_played ?? 0} colourHex={colourHex} />
+          <StatCard label="Games won" value={stats?.games_won ?? 0} colourHex={colourHex} />
+          <StatCard label="Win rate" value={stats ? winRateDisplay : '—'} colourHex={colourHex} />
+          <StatCard label="Current streak" value={stats?.current_streak ?? 0} colourHex={colourHex} />
+          <StatCard label="Longest streak" value={stats?.longest_streak ?? 0} colourHex={colourHex} />
+          <StatCard label="Fastest win" value={stats?.fastest_win_turns != null ? `${stats.fastest_win_turns} turns` : '—'} colourHex={colourHex} />
+          <StatCard label="Most cards held" value={stats?.most_cards_held ?? 0} colourHex={colourHex} />
+          <StatCard label="Biggest pickup" value={stats?.biggest_pickup ?? 0} colourHex={colourHex} />
+          <StatCard label="Black jacks received" value={stats?.times_picked_up_black_jack ?? 0} colourHex={colourHex} shame />
+          <StatCard label="Black jacks countered" value={stats?.times_countered_black_jack ?? 0} colourHex={colourHex} />
+          <StatCard label="2s stacked on others" value={stats?.times_stacked_two ?? 0} colourHex={colourHex} />
+          <StatCard label="2s stacked on you" value={stats?.times_victim_of_two ?? 0} colourHex={colourHex} shame />
+          <StatCard label='Correct "on cards"' value={stats?.times_correct_on_cards ?? 0} colourHex={colourHex} />
+          <StatCard label='False "on cards"' value={stats?.times_false_on_cards ?? 0} colourHex={colourHex} shame />
+          <StatCard label="Times kicked" value={stats?.times_kicked_timeout ?? 0} colourHex={colourHex} shame />
+          <StatCard label="Longest game" value={stats?.longest_game_turns != null && stats.longest_game_turns > 0 ? `${stats.longest_game_turns} turns` : '—'} colourHex={colourHex} />
         </View>
 
-        {/* Nemesis + victim */}
+        {/* Banter section */}
         <Text style={styles.sectionTitle}>Rivals</Text>
         <View style={styles.rivalsSection}>
           {stats?.nemesis_username ? (
             <View style={styles.rivalCard}>
-              <Text style={styles.rivalEmoji}>💀</Text>
+              <Avatar
+                avatarId={stats.nemesis_avatar_id ?? 'avatar_01'}
+                size={40}
+                colourHex="#ef5350"
+              />
               <View style={styles.rivalInfo}>
                 <Text style={styles.rivalRole}>Your nemesis</Text>
-                <Text style={styles.rivalName}>{stats.nemesis_username}</Text>
-                <Text style={styles.rivalCount}>Lost to them {stats.nemesis_loss_count}x</Text>
+                <Text style={[styles.rivalName, { color: '#ef5350' }]}>{stats.nemesis_username}</Text>
+                <Text style={styles.rivalCount}>Beat you {stats.nemesis_loss_count}x</Text>
               </View>
             </View>
           ) : (
             <View style={styles.rivalCardEmpty}>
-              <Text style={styles.rivalEmptyText}>No nemesis yet — play more games!</Text>
+              <Text style={styles.rivalEmptyText}>No nemesis yet...</Text>
             </View>
           )}
 
           {stats?.victim_username ? (
             <View style={[styles.rivalCard, styles.rivalCardGreen]}>
-              <Text style={styles.rivalEmoji}>😈</Text>
+              <Avatar
+                avatarId={stats.victim_avatar_id ?? 'avatar_01'}
+                size={40}
+                colourHex="#4caf50"
+              />
               <View style={styles.rivalInfo}>
                 <Text style={[styles.rivalRole, styles.rivalRoleGreen]}>Your victim</Text>
-                <Text style={styles.rivalName}>{stats.victim_username}</Text>
-                <Text style={styles.rivalCount}>Beat them {stats.victim_win_count}x</Text>
+                <Text style={[styles.rivalName, { color: '#4caf50' }]}>{stats.victim_username}</Text>
+                <Text style={styles.rivalCount}>You've beaten them {stats.victim_win_count}x</Text>
               </View>
             </View>
-          ) : null}
+          ) : (
+            <View style={[styles.rivalCardEmpty, styles.rivalCardEmptyGreen]}>
+              <Text style={[styles.rivalEmptyText, { fontStyle: 'italic' }]}>No victim yet...</Text>
+            </View>
+          )}
         </View>
 
         {/* Sign out */}
@@ -247,6 +325,14 @@ export default function ProfileScreen() {
           <Text style={styles.signOutBtnText}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <AvatarPickerModal
+        visible={pickerVisible}
+        currentAvatarId={profile.avatarId}
+        colourHex={colourHex}
+        onSelect={handleAvatarSelect}
+        onClose={() => setPickerVisible(false)}
+      />
     </SafeAreaView>
   )
 }
@@ -291,16 +377,24 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 20,
   },
-  bigAvatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+  avatarTouchable: {
+    position: 'relative',
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#121212',
   },
-  bigAvatarText: {
+  editBadgeText: {
     color: '#ffffff',
-    fontSize: 36,
+    fontSize: 12,
     fontWeight: '700',
   },
   username: {
@@ -370,8 +464,22 @@ const styles = StyleSheet.create({
     color: '#616161',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: 12,
+    marginBottom: 10,
     marginTop: 8,
+  },
+
+  // ── Summary banner ────────────────────────────────────────────────────────
+  banner: {
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  bannerText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 
   // ── Stats grid ────────────────────────────────────────────────────────────
@@ -386,19 +494,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     width: '47%',
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: '#2a2a2a',
     gap: 4,
   },
   statValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '500',
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#757575',
-    fontWeight: '500',
   },
 
   // ── Rivals ────────────────────────────────────────────────────────────────
@@ -407,18 +513,18 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   rivalCard: {
-    backgroundColor: '#2a1a1a',
+    backgroundColor: '#FCEBEB',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#5c2d2d',
+    borderColor: '#F5C6C6',
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
   },
   rivalCardGreen: {
-    backgroundColor: '#1a2a1a',
-    borderColor: '#2e5c2e',
+    backgroundColor: '#EAF3DE',
+    borderColor: '#C6E0B0',
   },
   rivalCardEmpty: {
     backgroundColor: '#1e1e1e',
@@ -428,11 +534,13 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
   },
-  rivalEmoji: {
-    fontSize: 28,
+  rivalCardEmptyGreen: {
+    backgroundColor: '#1a2a1a',
+    borderColor: '#2e5c2e',
   },
   rivalInfo: {
     gap: 2,
+    flex: 1,
   },
   rivalRole: {
     fontSize: 11,
@@ -447,7 +555,6 @@ const styles = StyleSheet.create({
   rivalName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
   },
   rivalCount: {
     fontSize: 12,
@@ -479,6 +586,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 32,
     gap: 16,
+  },
+  guestAvatarWrapper: {
+    position: 'relative',
+  },
+  lockBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 12,
+    padding: 2,
+    borderWidth: 2,
+    borderColor: '#121212',
+  },
+  lockText: {
+    fontSize: 14,
   },
   guestUsername: {
     fontSize: 22,

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="100" fill="#E8650A"/>
+  <polygon points="68,80 55,50 82,72" fill="#E8650A"/>
+  <polygon points="132,80 145,50 118,72" fill="#E8650A"/>
+  <polygon points="70,79 58,55 80,72" fill="#F4A060"/>
+  <polygon points="130,79 142,55 120,72" fill="#F4A060"/>
+  <circle cx="100" cy="108" r="48" fill="#E8650A"/>
+  <circle cx="80" cy="112" r="18" fill="#F8E0CC"/>
+  <circle cx="120" cy="112" r="18" fill="#F8E0CC"/>
+  <ellipse cx="86" cy="96" rx="7" ry="5" fill="#1a1a1a"/>
+  <ellipse cx="114" cy="96" rx="7" ry="5" fill="#1a1a1a"/>
+  <ellipse cx="87" cy="95" rx="2" ry="2" fill="#ffffff"/>
+  <ellipse cx="115" cy="95" rx="2" ry="2" fill="#ffffff"/>
+  <ellipse cx="100" cy="115" rx="5" ry="4" fill="#1a1a1a"/>
+  <line x1="70" y1="112" x2="52" y2="108" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="70" y1="118" x2="52" y2="118" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="130" y1="112" x2="148" y2="108" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="130" y1="118" x2="148" y2="118" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

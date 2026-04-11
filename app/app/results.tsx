@@ -15,6 +15,7 @@ import { useGameStore } from '../store/gameStore';
 import { Confetti } from '../components/Confetti';
 import { useSounds } from '../hooks/useSounds';
 import { useHaptics } from '../hooks/useHaptics';
+import Avatar from '../components/Avatar';
 
 interface Standing {
   id: string;
@@ -23,6 +24,7 @@ interface Standing {
   score: number;
   isWinner: boolean;
   colourHex?: string;
+  avatarId?: string;
 }
 
 export default function ResultsScreen() {
@@ -110,6 +112,7 @@ export default function ResultsScreen() {
       score: gameState.sessionScores[p.id] ?? 0,
       isWinner: p.id === winnerId,
       colourHex: p.colourHex,
+      avatarId: (p as { avatarId?: string }).avatarId,
     }))
     .sort((a, b) => a.cardCount - b.cardCount);
 
@@ -174,6 +177,12 @@ export default function ResultsScreen() {
                 ]}
               >
                 <Text style={styles.position}>#{index + 1}</Text>
+                <Avatar
+                  avatarId={item.avatarId ?? 'avatar_01'}
+                  size={48}
+                  colourHex="#EF9F27"
+                  showRing
+                />
                 <Text style={[styles.playerName, item.colourHex ? { color: item.colourHex } : undefined]}>{item.name}</Text>
                 <View style={styles.rightSide}>
                   <Text style={styles.cardCount}>
@@ -188,6 +197,12 @@ export default function ResultsScreen() {
             ) : (
               <View style={[styles.row]}>
                 <Text style={styles.position}>#{index + 1}</Text>
+                <Avatar
+                  avatarId={item.avatarId ?? 'avatar_01'}
+                  size={48}
+                  colourHex={item.colourHex ?? '#378ADD'}
+                  showRing
+                />
                 <Text style={[styles.playerName, item.colourHex ? { color: item.colourHex } : undefined]}>{item.name}</Text>
                 <View style={styles.rightSide}>
                   <Text style={styles.cardCount}>

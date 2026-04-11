@@ -6,6 +6,7 @@ import { pickAIMove } from '../../engine/ai';
 import { isValidCombo } from '../../engine/validation';
 import { assignRandomColour } from '../../shared/colours';
 import { useGameStore } from '../store/gameStore';
+import { AVATAR_LIST } from '../assets/avatars';
 import type { Card, GameState, Player, Suit } from '../../engine/types';
 
 export interface LocalGameParams {
@@ -45,7 +46,7 @@ export function useLocalGame() {
     }
   }, [gameState?.currentPlayerIndex, gameState?.phase]);
 
-  function startLocalGame(playerName: string, aiCount: number) {
+  function startLocalGame(playerName: string, aiCount: number, humanAvatarId?: string) {
     humanNameRef.current = playerName;
     const clampedAI = Math.min(3, Math.max(1, aiCount));
     const playerCount = 1 + clampedAI;
@@ -55,14 +56,20 @@ export function useLocalGame() {
     const humanColour = assignRandomColour(takenColourIds);
     takenColourIds.push(humanColour.id);
 
+    // Assign unique random avatars — shuffle and pick without repeats where possible
+    const avatarIds = AVATAR_LIST.map((a) => a.id);
+    const shuffledAvatars = [...avatarIds].sort(() => Math.random() - 0.5);
+    const humanUsedAvatar = humanAvatarId ?? shuffledAvatars[0]!;
+    const aiAvatarPool = shuffledAvatars.filter((id) => id !== humanUsedAvatar);
+
     const players: Player[] = [
-      { id: 'player-human', hand: [], isHuman: true, colourHex: humanColour.hex },
+      { id: 'player-human', hand: [], isHuman: true, colourHex: humanColour.hex, avatarId: humanUsedAvatar } as Player & { avatarId: string },
       ...Array.from({ length: clampedAI }, (_, i) => {
         const colour = assignRandomColour(takenColourIds);
         takenColourIds.push(colour.id);
-        return { id: `ai-${i + 1}`, hand: [], isHuman: false, colourHex: colour.hex };
+        return { id: `ai-${i + 1}`, hand: [], isHuman: false, colourHex: colour.hex, avatarId: aiAvatarPool[i % aiAvatarPool.length]! } as Player & { avatarId: string };
       }),
-    ];
+    ] as Player[];
 
     const deck = shuffleDeck(createDeck());
     const { hands, remaining } = dealCards(deck, playerCount, 7);

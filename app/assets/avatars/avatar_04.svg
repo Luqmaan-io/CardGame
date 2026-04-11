@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="100" fill="#4E342E"/>
+  <polygon points="72,84 62,52 86,80" fill="#6D4C41"/>
+  <polygon points="128,84 138,52 114,80" fill="#6D4C41"/>
+  <polygon points="74,83 65,56 86,79" fill="#795548"/>
+  <polygon points="126,83 135,56 114,79" fill="#795548"/>
+  <circle cx="100" cy="108" r="50" fill="#6D4C41"/>
+  <circle cx="100" cy="106" r="36" fill="#F5F0E8"/>
+  <ellipse cx="84" cy="100" rx="13" ry="13" fill="#1a1a1a"/>
+  <ellipse cx="116" cy="100" rx="13" ry="13" fill="#1a1a1a"/>
+  <ellipse cx="84" cy="100" rx="8" ry="8" fill="#FFB300"/>
+  <ellipse cx="116" cy="100" rx="8" ry="8" fill="#FFB300"/>
+  <circle cx="84" cy="100" r="4" fill="#1a1a1a"/>
+  <circle cx="116" cy="100" r="4" fill="#1a1a1a"/>
+  <circle cx="85" cy="98" r="2" fill="#ffffff"/>
+  <circle cx="117" cy="98" r="2" fill="#ffffff"/>
+  <polygon points="100,116 95,124 105,124" fill="#FFB300"/>
+  <ellipse cx="82" cy="82" rx="8" ry="4" fill="#6D4C41"/>
+  <ellipse cx="118" cy="82" rx="8" ry="4" fill="#6D4C41"/>
+</svg>

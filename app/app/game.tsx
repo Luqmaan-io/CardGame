@@ -47,7 +47,7 @@ function dealIntervalMs(playerCount: number): number {
 
 export default function GameScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string; playerName?: string; aiCount?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; playerName?: string; aiCount?: string; avatarId?: string }>();
   const isLocalMode = params.mode === 'local';
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
@@ -364,7 +364,7 @@ export default function GameScreen() {
       localGameStartedRef.current = true;
       const name = params.playerName ?? 'Player';
       const count = parseInt(params.aiCount ?? '1', 10);
-      startLocalGame(name, count);
+      startLocalGame(name, count, params.avatarId);
     }
   }, []);
 

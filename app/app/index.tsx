@@ -16,6 +16,8 @@ import { useSocket } from '../hooks/useSocket';
 import { useGameStore } from '../store/gameStore';
 import { HowToPlayModal } from '../components/HowToPlayModal';
 import { useAuth } from '../context/AuthContext';
+import Avatar from '../components/Avatar';
+import AvatarPickerModal from '../components/AvatarPickerModal';
 // Subtle animated waiting indicator — three dots that cycle 1→2→3→1
 function PulsingDots() {
   const [step, setStep] = useState(0);
@@ -34,7 +36,7 @@ export default function HomeScreen() {
   const { createRoom, joinRoom, startGame } = useSocket();
   const { setPlayerName, roomId, roomInfo, myPlayerId, gameState, error, setError } =
     useGameStore();
-  const { profile, isGuest } = useAuth();
+  const { profile, isGuest, updateProfile } = useAuth();
 
   // Mode selector
   const [mode, setMode] = useState<Mode>('none');
@@ -46,6 +48,8 @@ export default function HomeScreen() {
   const [maxPlayers, setMaxPlayers] = useState<2 | 3 | 4>(4);
   const [lastAction, setLastAction] = useState<'create' | 'join' | null>(null);
   const [copied, setCopied] = useState(false);
+  const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
+  const [guestAvatarAlert, setGuestAvatarAlert] = useState(false);
 
   // AI flow state — pre-filled from profile
   const [aiName, setAiName] = useState('');
@@ -81,7 +85,7 @@ export default function HomeScreen() {
     setPlayerName(createName.trim());
     setLastAction('create');
     setError(null);
-    createRoom(maxPlayers, profile?.id, profile?.colourHex);
+    createRoom(maxPlayers, profile?.id, profile?.colourHex, profile?.avatarId);
   }
 
   function handleJoin() {
@@ -89,7 +93,7 @@ export default function HomeScreen() {
     setPlayerName(joinName.trim());
     setLastAction('join');
     setError(null);
-    joinRoom(joinCode.trim().toUpperCase(), profile?.id, profile?.colourHex);
+    joinRoom(joinCode.trim().toUpperCase(), profile?.id, profile?.colourHex, profile?.avatarId);
   }
 
   async function handleCopy() {
@@ -115,8 +119,24 @@ export default function HomeScreen() {
         aiCount: String(aiCount),
         userId: profile?.id ?? '',
         colourHex: profile?.colourHex ?? '#378ADD',
+        avatarId: profile?.avatarId ?? 'avatar_01',
       },
     });
+  }
+
+  async function handleAvatarSelect(avatarId: string) {
+    try {
+      await updateProfile({ avatarId });
+    } catch { /* ignore */ }
+  }
+
+  function handleAvatarPress() {
+    if (isGuest) {
+      setGuestAvatarAlert(true);
+      setTimeout(() => setGuestAvatarAlert(false), 3000);
+    } else {
+      setAvatarPickerVisible(true);
+    }
   }
 
   const isHost = roomInfo?.players[0]?.playerId === myPlayerId;
@@ -216,14 +236,29 @@ export default function HomeScreen() {
         {/* Title row with profile icon */}
         <View style={styles.titleRow}>
           <Text style={styles.title}>Card Game</Text>
-          <TouchableOpacity style={styles.profileBtn} onPress={() => router.push('/profile')}>
-            <View style={[styles.profileAvatar, { backgroundColor: profile?.colourHex ?? '#378ADD' }]}>
-              <Text style={styles.profileAvatarText}>
-                {(profile?.username ?? '?').charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.profileBtnGroup}>
+            <TouchableOpacity onPress={handleAvatarPress}>
+              <Avatar
+                avatarId={profile?.avatarId ?? 'avatar_01'}
+                size={36}
+                colourHex={profile?.colourHex ?? '#378ADD'}
+              />
+              {isGuest && (
+                <View style={styles.lockOverlay}>
+                  <Text style={styles.lockOverlayText}>🔒</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.profileTextBtn} onPress={() => router.push('/profile')}>
+              <Text style={styles.profileTextBtnText}>Profile</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+        {guestAvatarAlert && (
+          <View style={styles.guestAvatarAlert}>
+            <Text style={styles.guestAvatarAlertText}>Create an account to choose your avatar</Text>
+          </View>
+        )}
 
         {/* ── Mode selector ── */}
         <View style={styles.modeRow}>
@@ -416,6 +451,16 @@ export default function HomeScreen() {
       </ScrollView>
 
       <HowToPlayModal visible={showHowToPlay} onClose={() => setShowHowToPlay(false)} />
+
+      {!isGuest && profile && (
+        <AvatarPickerModal
+          visible={avatarPickerVisible}
+          currentAvatarId={profile.avatarId}
+          colourHex={profile.colourHex}
+          onSelect={handleAvatarSelect}
+          onClose={() => setAvatarPickerVisible(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -466,21 +511,44 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
   },
-  profileBtn: {
+  profileBtnGroup: {
     position: 'absolute',
     right: 0,
-  },
-  profileAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
   },
-  profileAvatarText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
+  profileTextBtn: {
+    paddingHorizontal: 4,
+  },
+  profileTextBtnText: {
+    color: '#616161',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  lockOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 8,
+    padding: 1,
+  },
+  lockOverlayText: {
+    fontSize: 10,
+  },
+  guestAvatarAlert: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  guestAvatarAlertText: {
+    color: '#9e9e9e',
+    fontSize: 13,
+    textAlign: 'center',
   },
 
   // ── Mode selector ─────────────────────────────────────────

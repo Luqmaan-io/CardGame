@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Card } from './Card';
 import { Hand } from './Hand';
 import { DiscardPile } from './DiscardPile';
+import Avatar from './Avatar';
 import type { GameState, Card as CardType } from '../../engine/types';
 import type { ConnectionState } from '../store/gameStore';
 
@@ -43,6 +44,7 @@ interface OpponentSlotProps {
   hasOnCardsDeclaration: boolean;
   strikes: number;
   colourHex?: string;
+  avatarId?: string;
 }
 
 // ─── OpponentSlot ─────────────────────────────────────────────────────────────
@@ -61,6 +63,7 @@ function OpponentSlot({
   isFlashing = false,
   visibleCardCount,
   colourHex,
+  avatarId,
 }: OpponentSlotPropsExtended) {
   const liftAnim = useRef(new Animated.Value(0)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -129,6 +132,12 @@ function OpponentSlot({
         { borderColor: isFlashing ? flashBorderColor : (isCurrentTurn ? '#ffc107' : 'transparent'), backgroundColor: isFlashing ? flashBg : undefined },
       ]}
     >
+      <Avatar
+        avatarId={avatarId ?? 'avatar_01'}
+        size={44}
+        colourHex={colourHex ?? '#378ADD'}
+        showRing={isCurrentTurn}
+      />
       <View style={styles.opponentNameRow}>
         {strikes >= 1 && (
           <View style={styles.strikeIcon}>
@@ -294,6 +303,7 @@ export function GameBoard({
               isFlashing={flashingPlayerId === opp.id}
               visibleCardCount={dealtCardCounts ? (dealtCardCounts[opp.id] ?? 0) : undefined}
               colourHex={opp.colourHex}
+              avatarId={(opp as { avatarId?: string }).avatarId}
             />
           </View>
         ))}

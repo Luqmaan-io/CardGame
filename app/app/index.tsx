@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/Avatar';
 import AvatarPickerModal from '../components/AvatarPickerModal';
 import { useFriendRequests } from '../hooks/useFriendRequests';
+import { THEME } from '../utils/theme';
 
 function FriendsIcon({ colour = '#616161' }: { colour?: string }) {
   return (
@@ -522,15 +523,15 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: THEME.appBackground,
   },
 
   // ── Guest banner ──────────────────────────────────────────
   guestBanner: {
-    backgroundColor: '#1a2a1a',
+    backgroundColor: 'rgba(201,168,76,0.07)',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2e7d32',
+    borderColor: 'rgba(201,168,76,0.25)',
     paddingHorizontal: 14,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -540,12 +541,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   guestBannerText: {
-    color: '#9e9e9e',
+    color: THEME.textSecondary,
     fontSize: 12,
     flex: 1,
   },
   guestBannerLink: {
-    color: '#4caf50',
+    color: THEME.gold,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -561,7 +562,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 38,
     fontWeight: '800',
-    color: '#ffffff',
+    color: THEME.gold,
     textAlign: 'center',
     letterSpacing: 1,
   },
@@ -577,7 +578,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   navIconLabel: {
-    color: '#616161',
+    color: THEME.textMuted,
     fontSize: 9,
     fontWeight: '600',
   },
@@ -585,7 +586,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -4,
-    backgroundColor: '#ef5350',
+    backgroundColor: THEME.danger,
     borderRadius: 7,
     minWidth: 14,
     height: 14,
@@ -610,16 +611,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   guestAvatarAlert: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: THEME.cardBackground,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: 'rgba(201,168,76,0.2)',
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginBottom: 12,
   },
   guestAvatarAlertText: {
-    color: '#9e9e9e',
+    color: THEME.textSecondary,
     fontSize: 13,
     textAlign: 'center',
   },
@@ -635,21 +636,21 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: '#2a2a2a',
-    backgroundColor: '#1e1e1e',
+    borderColor: 'rgba(201,168,76,0.18)',
+    backgroundColor: THEME.cardBackground,
     alignItems: 'center',
   },
   modeBtnActive: {
-    backgroundColor: '#1b3a1f',
-    borderColor: '#2e7d32',
+    backgroundColor: THEME.surfaceBackground,
+    borderColor: THEME.gold,
   },
   modeBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#616161',
+    color: THEME.textMuted,
   },
   modeBtnTextActive: {
-    color: '#4caf50',
+    color: THEME.gold,
   },
 
   // ── Lobby layout ──────────────────────────────────────────
@@ -669,10 +670,10 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   card: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: THEME.cardBackground,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: 'rgba(201,168,76,0.18)',
     padding: 24,
     gap: 12,
   },
@@ -682,7 +683,7 @@ const styles = StyleSheet.create({
   cardHeading: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
+    color: THEME.textPrimary,
     marginBottom: 4,
   },
 
@@ -690,20 +691,20 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9e9e9e',
+    color: THEME.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: -4,
   },
   input: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: THEME.surfaceBackground,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#ffffff',
+    color: THEME.textPrimary,
     borderWidth: 1,
-    borderColor: '#3a3a3a',
+    borderColor: 'rgba(201,168,76,0.2)',
   },
   codeInput: {
     letterSpacing: 3,
@@ -720,61 +721,61 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#3a3a3a',
+    borderColor: 'rgba(201,168,76,0.2)',
     alignItems: 'center',
   },
   countBtnActive: {
-    backgroundColor: '#1b5e20',
-    borderColor: '#2e7d32',
+    backgroundColor: THEME.surfaceBackground,
+    borderColor: THEME.gold,
   },
   countBtnText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#757575',
+    color: THEME.textMuted,
   },
   countBtnTextActive: {
-    color: '#ffffff',
+    color: THEME.gold,
   },
 
   // ── Buttons ───────────────────────────────────────────────
   primaryBtn: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: THEME.gold,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 4,
   },
   primaryBtnText: {
-    color: '#ffffff',
+    color: THEME.appBackground,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   secondaryBtn: {
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#2e7d32',
+    borderColor: THEME.gold,
     marginTop: 4,
   },
   secondaryBtnText: {
-    color: '#4caf50',
+    color: THEME.gold,
     fontSize: 16,
     fontWeight: '600',
   },
   btnDisabled: {
-    backgroundColor: '#2a2a2a',
-    borderColor: '#3a3a3a',
+    backgroundColor: THEME.cardBackground,
+    borderColor: 'rgba(201,168,76,0.15)',
     opacity: 1,
   },
   btnDisabledText: {
-    color: '#505050',
+    color: THEME.textMuted,
   },
 
   // ── Dividers ──────────────────────────────────────────────
   verticalDivider: {
     width: 1,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: 'rgba(201,168,76,0.15)',
     marginHorizontal: 16,
     alignSelf: 'stretch',
   },
@@ -787,16 +788,16 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: 'rgba(201,168,76,0.15)',
   },
   dividerOr: {
-    color: '#505050',
+    color: THEME.textMuted,
     fontSize: 13,
   },
 
   // ── Inline error ──────────────────────────────────────────
   inlineError: {
-    color: '#ef5350',
+    color: THEME.danger,
     fontSize: 13,
     fontWeight: '500',
     marginTop: -4,
@@ -813,46 +814,46 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   waitingCard: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: THEME.cardBackground,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: 'rgba(201,168,76,0.18)',
     padding: 24,
     gap: 16,
   },
   roomCodeSection: {
     alignItems: 'center',
-    backgroundColor: '#141414',
+    backgroundColor: THEME.appBackground,
     borderRadius: 12,
     paddingVertical: 20,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#2e7d32',
+    borderColor: THEME.gold,
     gap: 8,
   },
   roomCodeLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9e9e9e',
+    color: THEME.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   roomCodeBig: {
     fontSize: 36,
     fontWeight: '800',
-    color: '#4caf50',
+    color: THEME.gold,
     letterSpacing: 6,
   },
   copyBtn: {
     borderWidth: 1,
-    borderColor: '#2e7d32',
+    borderColor: THEME.gold,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 7,
     marginTop: 4,
   },
   copyBtnText: {
-    color: '#4caf50',
+    color: THEME.gold,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -863,17 +864,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   waitingText: {
-    color: '#9e9e9e',
+    color: THEME.textSecondary,
     fontSize: 14,
   },
   pulsingDots: {
-    color: '#4caf50',
+    color: THEME.gold,
     fontSize: 10,
     letterSpacing: 2,
     width: 28,
   },
   playersSectionTitle: {
-    color: '#ffffff',
+    color: THEME.textPrimary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -883,14 +884,14 @@ const styles = StyleSheet.create({
   playerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: THEME.surfaceBackground,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 10,
     marginBottom: 8,
   },
   playerRowName: {
-    color: '#ffffff',
+    color: THEME.textPrimary,
     fontSize: 15,
     flex: 1,
   },
@@ -899,25 +900,25 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   hostBadge: {
-    color: '#ffd54f',
+    color: THEME.gold,
     fontSize: 10,
     fontWeight: '700',
-    backgroundColor: 'rgba(255,213,79,0.15)',
+    backgroundColor: 'rgba(201,168,76,0.15)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   youBadge: {
-    color: '#4caf50',
+    color: THEME.success,
     fontSize: 10,
     fontWeight: '700',
-    backgroundColor: 'rgba(76,175,80,0.15)',
+    backgroundColor: 'rgba(93,202,165,0.15)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   waitingHint: {
-    color: '#616161',
+    color: THEME.textMuted,
     textAlign: 'center',
     fontSize: 14,
   },
@@ -928,10 +929,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: 'rgba(201,168,76,0.2)',
   },
   howToPlayBtnText: {
-    color: '#616161',
+    color: THEME.textMuted,
     fontSize: 14,
     fontWeight: '500',
   },

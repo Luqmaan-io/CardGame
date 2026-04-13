@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router'
 import { useAuth } from '../context/AuthContext'
 import Avatar from '../components/Avatar'
+import { THEME } from '../utils/theme'
 import {
   getGlobalLeaderboard,
   getFriendsLeaderboard,
@@ -245,181 +246,35 @@ export default function LeaderboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#121212',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backBtnText: {
-    color: '#4caf50',
-    fontSize: 22,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-
-  // Tabs
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 10,
-    marginBottom: 12,
-  },
-  tabPill: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#1e1e1e',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-    alignItems: 'center',
-  },
-  tabPillActive: {
-    backgroundColor: '#1b3a1f',
-    borderColor: '#2e7d32',
-  },
-  tabPillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#616161',
-  },
-  tabPillTextActive: {
-    color: '#4caf50',
-  },
-
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
-    gap: 8,
-  },
-
-  // Row
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    padding: 12,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  rowTop3: {
-    borderWidth: 1.5,
-  },
-  rankNum: {
-    width: 28,
-    fontSize: 15,
-    fontWeight: '700',
-    textAlign: 'center',
-    color: '#616161',
-  },
-  entryInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  entryName: {
-    fontSize: 15,
-    fontWeight: '700',
-    flex: 1,
-  },
-  entryMeta: {
-    fontSize: 11,
-    color: '#757575',
-  },
-  streakBadge: {
-    backgroundColor: 'rgba(239,159,39,0.15)',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  streakText: {
-    fontSize: 11,
-    color: '#EF9F27',
-    fontWeight: '700',
-  },
-  winsCol: {
-    alignItems: 'center',
-    minWidth: 40,
-  },
-  winsNum: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  winsLabel: {
-    fontSize: 10,
-    color: '#616161',
-    fontWeight: '600',
-  },
-
-  // Skeleton
-  skeletonRank: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#2a2a2a',
-  },
-  skeletonAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2a2a2a',
-  },
-  skeletonInfo: {
-    flex: 1,
-    gap: 6,
-  },
-  skeletonLine: {
-    height: 12,
-    width: '75%',
-    borderRadius: 6,
-    backgroundColor: '#2a2a2a',
-  },
-
-  // Empty
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 16,
-  },
-  emptyText: {
-    color: '#616161',
-    fontSize: 15,
-    textAlign: 'center',
-  },
-  primaryBtn: {
-    backgroundColor: '#2e7d32',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-  },
-  primaryBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  safe: { flex: 1, backgroundColor: THEME.appBackground },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtnText: { color: THEME.gold, fontSize: 22 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: THEME.textPrimary },
+  tabs: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 12 },
+  tabPill: { flex: 1, paddingVertical: 10, borderRadius: 20, backgroundColor: THEME.cardBackground, borderWidth: 1, borderColor: 'rgba(201,168,76,0.18)', alignItems: 'center' },
+  tabPillActive: { backgroundColor: THEME.surfaceBackground, borderColor: THEME.gold },
+  tabPillText: { fontSize: 13, fontWeight: '600', color: THEME.textMuted },
+  tabPillTextActive: { color: THEME.gold },
+  listContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: THEME.cardBackground, borderRadius: 12, padding: 12, gap: 10, borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)' },
+  rowTop3: { borderWidth: 1.5 },
+  rankNum: { width: 28, fontSize: 15, fontWeight: '700', textAlign: 'center', color: THEME.textMuted },
+  entryInfo: { flex: 1, gap: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  entryName: { fontSize: 15, fontWeight: '700', flex: 1 },
+  entryMeta: { fontSize: 11, color: THEME.textMuted },
+  streakBadge: { backgroundColor: 'rgba(239,159,39,0.15)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  streakText: { fontSize: 11, color: THEME.warning, fontWeight: '700' },
+  winsCol: { alignItems: 'center', minWidth: 40 },
+  winsNum: { fontSize: 20, fontWeight: '800' },
+  winsLabel: { fontSize: 10, color: THEME.textMuted, fontWeight: '600' },
+  skeletonRank: { width: 28, height: 28, borderRadius: 14, backgroundColor: THEME.surfaceBackground },
+  skeletonAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: THEME.surfaceBackground },
+  skeletonInfo: { flex: 1, gap: 6 },
+  skeletonLine: { height: 12, width: '75%', borderRadius: 6, backgroundColor: THEME.surfaceBackground },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 },
+  emptyText: { color: THEME.textMuted, fontSize: 15, textAlign: 'center' },
+  primaryBtn: { backgroundColor: THEME.gold, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, alignItems: 'center' },
+  primaryBtnText: { color: THEME.appBackground, fontSize: 15, fontWeight: '800' },
 })

@@ -15,6 +15,7 @@ import {
 import { useRouter } from 'expo-router'
 import { useAuth } from '../context/AuthContext'
 import Avatar from '../components/Avatar'
+import { THEME } from '../utils/theme'
 import {
   sendFriendRequest,
   acceptFriendRequest,
@@ -304,311 +305,52 @@ export default function FriendsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#121212',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backBtnText: {
-    color: '#4caf50',
-    fontSize: 22,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-
-  // Tabs
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 12,
-  },
-  tabPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#1e1e1e',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-    gap: 6,
-  },
-  tabPillActive: {
-    backgroundColor: '#1b3a1f',
-    borderColor: '#2e7d32',
-  },
-  tabPillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#616161',
-  },
-  tabPillTextActive: {
-    color: '#4caf50',
-  },
-  tabBadge: {
-    backgroundColor: '#ef5350',
-    borderRadius: 8,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    minWidth: 16,
-    alignItems: 'center',
-  },
-  tabBadgeText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-
-  scroll: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
-  },
-
-  // Add friend
-  addRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 8,
-  },
-  codeInput: {
-    flex: 1,
-    backgroundColor: '#1e1e1e',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    fontSize: 16,
-    color: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-    letterSpacing: 2,
-    fontWeight: '600',
-  },
-  sendBtn: {
-    backgroundColor: '#2e7d32',
-    borderRadius: 10,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendBtnDisabled: {
-    backgroundColor: '#1e1e1e',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  sendBtnText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  addStatusText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4caf50',
-    marginBottom: 12,
-    paddingHorizontal: 2,
-  },
-  addStatusError: {
-    color: '#ef5350',
-  },
-
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#616161',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 10,
-    marginTop: 4,
-  },
-
-  // Friend row
-  friendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  friendInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  friendName: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  friendCode: {
-    fontSize: 11,
-    color: '#616161',
-    letterSpacing: 1.5,
-    fontWeight: '500',
-  },
-  removeBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  removeBtnText: {
-    color: '#616161',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  // Request buttons
-  requestBtns: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  acceptBtn: {
-    backgroundColor: '#2e7d32',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  acceptBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  declineBtn: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  declineBtnText: {
-    color: '#616161',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  // Empty states
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyStateText: {
-    color: '#616161',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  emptyStateHint: {
-    color: '#424242',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  emptyInline: {
-    color: '#424242',
-    fontSize: 13,
-    fontStyle: 'italic',
-    marginBottom: 8,
-  },
-
-  // Find tab
-  findContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  findLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#616161',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  findCode: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: 6,
-  },
-  findHint: {
-    fontSize: 13,
-    color: '#616161',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  shareBtn: {
-    backgroundColor: '#2e7d32',
-    borderRadius: 12,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    width: '100%',
-    alignItems: 'center',
-  },
-  shareBtnText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  copyBtn: {
-    borderRadius: 12,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    width: '100%',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  copyBtnText: {
-    color: '#4caf50',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-
-  // Guest state
-  guestState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 16,
-  },
-  guestStateText: {
-    color: '#9e9e9e',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  primaryBtn: {
-    backgroundColor: '#2e7d32',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-  },
-  primaryBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  safe: { flex: 1, backgroundColor: THEME.appBackground },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtnText: { color: THEME.gold, fontSize: 22 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: THEME.textPrimary },
+  tabs: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 12 },
+  tabPill: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 20, backgroundColor: THEME.cardBackground, borderWidth: 1, borderColor: 'rgba(201,168,76,0.18)', gap: 6 },
+  tabPillActive: { backgroundColor: THEME.surfaceBackground, borderColor: THEME.gold },
+  tabPillText: { fontSize: 13, fontWeight: '600', color: THEME.textMuted },
+  tabPillTextActive: { color: THEME.gold },
+  tabBadge: { backgroundColor: THEME.danger, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, minWidth: 16, alignItems: 'center' },
+  tabBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700' },
+  scroll: { paddingHorizontal: 16, paddingBottom: 40 },
+  addRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
+  codeInput: { flex: 1, backgroundColor: THEME.cardBackground, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 13, fontSize: 16, color: THEME.textPrimary, borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)', letterSpacing: 2, fontWeight: '600' },
+  sendBtn: { backgroundColor: THEME.gold, borderRadius: 10, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  sendBtnDisabled: { backgroundColor: THEME.cardBackground, borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)' },
+  sendBtnText: { color: THEME.appBackground, fontWeight: '800', fontSize: 14 },
+  addStatusText: { fontSize: 13, fontWeight: '600', color: THEME.success, marginBottom: 12, paddingHorizontal: 2 },
+  addStatusError: { color: THEME.danger },
+  sectionLabel: { fontSize: 11, fontWeight: '600', color: THEME.textMuted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 4 },
+  friendRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: THEME.cardBackground, borderRadius: 12, padding: 12, marginBottom: 8, gap: 12, borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)' },
+  friendInfo: { flex: 1, gap: 2 },
+  friendName: { fontSize: 15, fontWeight: '700' },
+  friendCode: { fontSize: 11, color: THEME.textMuted, letterSpacing: 1.5, fontWeight: '500' },
+  removeBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' },
+  removeBtnText: { color: THEME.textMuted, fontSize: 12, fontWeight: '600' },
+  requestBtns: { flexDirection: 'row', gap: 6 },
+  acceptBtn: { backgroundColor: THEME.gold, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  acceptBtnText: { color: THEME.appBackground, fontSize: 12, fontWeight: '800' },
+  declineBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)' },
+  declineBtnText: { color: THEME.textMuted, fontSize: 12, fontWeight: '600' },
+  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  emptyStateText: { color: THEME.textMuted, fontSize: 16, fontWeight: '600' },
+  emptyStateHint: { color: THEME.textMuted, fontSize: 13, textAlign: 'center' },
+  emptyInline: { color: THEME.textMuted, fontSize: 13, fontStyle: 'italic', marginBottom: 8 },
+  findContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
+  findLabel: { fontSize: 12, fontWeight: '600', color: THEME.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
+  findCode: { fontSize: 36, fontWeight: '800', color: THEME.gold, letterSpacing: 6 },
+  findHint: { fontSize: 13, color: THEME.textMuted, textAlign: 'center', marginBottom: 8 },
+  shareBtn: { backgroundColor: THEME.gold, borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14, width: '100%', alignItems: 'center' },
+  shareBtnText: { color: THEME.appBackground, fontWeight: '800', fontSize: 15 },
+  copyBtn: { borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(201,168,76,0.25)' },
+  copyBtnText: { color: THEME.gold, fontWeight: '600', fontSize: 14 },
+  guestState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 },
+  guestStateText: { color: THEME.textSecondary, fontSize: 16, textAlign: 'center' },
+  primaryBtn: { backgroundColor: THEME.gold, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, alignItems: 'center' },
+  primaryBtnText: { color: THEME.appBackground, fontSize: 15, fontWeight: '800' },
 })

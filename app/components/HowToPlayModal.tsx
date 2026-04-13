@@ -28,7 +28,7 @@ const POWER_CARDS = [
     rank: '2',
     suits: null,
     name: 'Pick up 2',
-    rule: 'Next player draws 2 cards or plays another 2 to pass it on.',
+    rule: 'Next player picks up 2 cards or plays another 2 to pass it on.',
     rankColour: '#E24B4A',
   },
   {
@@ -42,7 +42,7 @@ const POWER_CARDS = [
     rank: 'J',
     suits: '♠ ♣',
     name: 'Pick up 7',
-    rule: 'Next player draws 7 cards — counter with a red Jack.',
+    rule: 'Next player picks up 7 cards — counter with a red Jack.',
     rankColour: '#212121',
   },
   {
@@ -149,11 +149,11 @@ export function HowToPlayModal({ visible, onClose }: HowToPlayModalProps) {
           <Text style={styles.body}>
             First player to empty their hand wins. You{' '}
             <Text style={styles.bold}>cannot finish on a power card</Text> — if your last card is a
-            power card you must draw one more.
+            power card you must pick up one more.
           </Text>
           <Text style={styles.body}>
             Use <Text style={styles.highlight}>"I'm on cards!"</Text> to let others know you could
-            win next turn — but only press it if you actually can, or you'll draw 2 as a penalty!
+            win next turn — but only press it if you actually can, or you'll pick up 2 as a penalty!
           </Text>
 
           {/* Section 4 — Timer */}

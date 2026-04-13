@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Avatar from '../components/Avatar'
 import AvatarPickerModal from '../components/AvatarPickerModal'
+import { THEME } from '../utils/theme'
 
 type Stats = {
   games_played: number
@@ -64,11 +65,11 @@ function StatCard({ label, value, colourHex, shame = false }: StatCardProps) {
 type BannerVariant = 'amber' | 'green' | 'red' | 'orange' | 'muted'
 
 const BANNER_COLOURS: Record<BannerVariant, { bg: string }> = {
-  amber: { bg: '#2a1f00' },
-  green: { bg: '#0d2a14' },
-  red: { bg: '#2a0d0d' },
-  orange: { bg: '#2a1400' },
-  muted: { bg: '#1a1a1a' },
+  amber: { bg: 'rgba(201,168,76,0.12)' },
+  green: { bg: 'rgba(93,202,165,0.10)' },
+  red: { bg: 'rgba(226,75,74,0.10)' },
+  orange: { bg: 'rgba(239,159,39,0.10)' },
+  muted: { bg: THEME.cardBackground },
 }
 
 function SummaryBanner({ stats, colourHex }: { stats: Stats; colourHex: string }) {
@@ -368,306 +369,69 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#121212',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backBtnText: {
-    color: '#4caf50',
-    fontSize: 22,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingBottom: 48,
-  },
+  safe: { flex: 1, backgroundColor: THEME.appBackground },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtnText: { color: THEME.gold, fontSize: 22 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: THEME.textPrimary },
+  scroll: { paddingHorizontal: 20, paddingBottom: 48 },
 
   // ── Identity section ──────────────────────────────────────────────────────
-  identitySection: {
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 20,
-  },
-  avatarTouchable: {
-    position: 'relative',
-  },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#121212',
-  },
-  editBadgeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  username: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  usernameEditRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  usernameInput: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 16,
-    color: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#2e7d32',
-    minWidth: 140,
-  },
-  saveBtn: {
-    backgroundColor: '#2e7d32',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  saveBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  cancelBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  cancelBtnText: {
-    color: '#616161',
-    fontSize: 14,
-  },
-  friendCodeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  friendCodeLabel: {
-    color: '#757575',
-    fontSize: 13,
-  },
-  friendCode: {
-    color: '#9e9e9e',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 2,
-  },
-  copyHint: {
-    color: '#4caf50',
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  identitySection: { alignItems: 'center', gap: 12, paddingVertical: 20 },
+  avatarTouchable: { position: 'relative' },
+  editBadge: { position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: THEME.appBackground },
+  editBadgeText: { color: THEME.appBackground, fontSize: 12, fontWeight: '700' },
+  username: { fontSize: 22, fontWeight: '700', color: THEME.textPrimary },
+  usernameEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  usernameInput: { backgroundColor: THEME.cardBackground, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, color: THEME.textPrimary, borderWidth: 1, borderColor: 'rgba(201,168,76,0.4)', minWidth: 140 },
+  saveBtn: { backgroundColor: THEME.gold, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  saveBtnText: { color: THEME.appBackground, fontWeight: '700', fontSize: 14 },
+  cancelBtn: { paddingHorizontal: 8, paddingVertical: 8 },
+  cancelBtnText: { color: THEME.textMuted, fontSize: 14 },
+  friendCodeRow: { flexDirection: 'row', alignItems: 'center' },
+  friendCodeLabel: { color: THEME.textMuted, fontSize: 13 },
+  friendCode: { color: THEME.textSecondary, fontSize: 13, fontWeight: '600', letterSpacing: 2 },
+  copyHint: { color: THEME.gold, fontSize: 13, fontWeight: '600' },
 
   // ── Section titles ────────────────────────────────────────────────────────
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#616161',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 10,
-    marginTop: 8,
-  },
+  sectionTitle: { fontSize: 12, fontWeight: '600', color: THEME.textMuted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 8 },
 
   // ── Summary banner ────────────────────────────────────────────────────────
-  banner: {
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  bannerText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  banner: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)' },
+  bannerText: { fontSize: 13, fontWeight: '600' },
 
   // ── Stats grid ────────────────────────────────────────────────────────────
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 24,
-  },
-  statCard: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    padding: 14,
-    width: '47%',
-    borderWidth: 0.5,
-    borderColor: '#2a2a2a',
-    gap: 4,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '500',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#757575',
-  },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
+  statCard: { backgroundColor: THEME.cardBackground, borderRadius: 12, padding: 14, width: '47%', borderWidth: 0.5, borderColor: 'rgba(201,168,76,0.15)', gap: 4 },
+  statValue: { fontSize: 24, fontWeight: '500' },
+  statLabel: { fontSize: 12, color: THEME.textMuted },
 
   // ── Rivals ────────────────────────────────────────────────────────────────
-  rivalsSection: {
-    gap: 10,
-    marginBottom: 32,
-  },
-  rivalCard: {
-    backgroundColor: '#FCEBEB',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F5C6C6',
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  rivalCardGreen: {
-    backgroundColor: '#EAF3DE',
-    borderColor: '#C6E0B0',
-  },
-  rivalCardEmpty: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-    padding: 16,
-    alignItems: 'center',
-  },
-  rivalCardEmptyGreen: {
-    backgroundColor: '#1a2a1a',
-    borderColor: '#2e5c2e',
-  },
-  rivalInfo: {
-    gap: 2,
-    flex: 1,
-  },
-  rivalRole: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#ef5350',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  rivalRoleGreen: {
-    color: '#4caf50',
-  },
-  rivalName: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  rivalCount: {
-    fontSize: 12,
-    color: '#757575',
-  },
-  rivalEmptyText: {
-    color: '#616161',
-    fontSize: 14,
-  },
+  rivalsSection: { gap: 10, marginBottom: 32 },
+  rivalCard: { backgroundColor: 'rgba(226,75,74,0.08)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(226,75,74,0.25)', padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  rivalCardGreen: { backgroundColor: 'rgba(93,202,165,0.08)', borderColor: 'rgba(93,202,165,0.25)' },
+  rivalCardEmpty: { backgroundColor: THEME.cardBackground, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(201,168,76,0.15)', padding: 16, alignItems: 'center' },
+  rivalCardEmptyGreen: { backgroundColor: THEME.cardBackground, borderColor: 'rgba(93,202,165,0.15)' },
+  rivalInfo: { gap: 2, flex: 1 },
+  rivalRole: { fontSize: 11, fontWeight: '600', color: THEME.danger, textTransform: 'uppercase', letterSpacing: 1 },
+  rivalRoleGreen: { color: THEME.success },
+  rivalName: { fontSize: 18, fontWeight: '700' },
+  rivalCount: { fontSize: 12, color: THEME.textMuted },
+  rivalEmptyText: { color: THEME.textMuted, fontSize: 14 },
 
   // ── Sign out ──────────────────────────────────────────────────────────────
-  signOutBtn: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  signOutBtnText: {
-    color: '#ef5350',
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  signOutBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(226,75,74,0.3)' },
+  signOutBtnText: { color: THEME.danger, fontSize: 15, fontWeight: '600' },
 
   // ── Guest view ────────────────────────────────────────────────────────────
-  guestContainer: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    gap: 16,
-  },
-  guestAvatarWrapper: {
-    position: 'relative',
-  },
-  lockBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    padding: 2,
-    borderWidth: 2,
-    borderColor: '#121212',
-  },
-  lockText: {
-    fontSize: 14,
-  },
-  guestUsername: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  guestCard: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#2e7d32',
-    padding: 24,
-    gap: 12,
-    width: '100%',
-    marginTop: 16,
-  },
-  guestCardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  guestCardBody: {
-    fontSize: 14,
-    color: '#9e9e9e',
-    lineHeight: 20,
-  },
-  primaryBtn: {
-    backgroundColor: '#2e7d32',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  primaryBtnText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  guestContainer: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 32, gap: 16 },
+  guestAvatarWrapper: { position: 'relative' },
+  lockBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: THEME.cardBackground, borderRadius: 12, padding: 2, borderWidth: 2, borderColor: THEME.appBackground },
+  lockText: { fontSize: 14 },
+  guestUsername: { fontSize: 22, fontWeight: '700', color: THEME.textPrimary },
+  guestCard: { backgroundColor: THEME.cardBackground, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(201,168,76,0.3)', padding: 24, gap: 12, width: '100%', marginTop: 16 },
+  guestCardTitle: { fontSize: 18, fontWeight: '700', color: THEME.textPrimary },
+  guestCardBody: { fontSize: 14, color: THEME.textSecondary, lineHeight: 20 },
+  primaryBtn: { backgroundColor: THEME.gold, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  primaryBtnText: { color: THEME.appBackground, fontSize: 15, fontWeight: '700' },
 })

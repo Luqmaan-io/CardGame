@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import type { Card as CardType } from '../../engine/types';
+import { THEME } from '../utils/theme';
 
 interface CardProps {
   card: CardType;
@@ -9,6 +10,9 @@ interface CardProps {
   isValid?: boolean;
   faceDown?: boolean;
   isDisabled?: boolean;
+  // Override dimensions (used for mini history cards)
+  width?: number;
+  height?: number;
 }
 
 const SUIT_SYMBOLS: Record<string, string> = {
@@ -20,6 +24,45 @@ const SUIT_SYMBOLS: Record<string, string> = {
 
 const RED_SUITS = new Set(['hearts', 'diamonds']);
 
+// ─── CardBack ────────────────────────────────────────────────────────────────
+// Navy background with gold diamond pattern. Used for all face-down cards.
+
+export function CardBack({ width = 70, height = 100 }: { width?: number; height?: number }) {
+  return (
+    <View
+      style={[
+        styles.cardBack,
+        { width, height, borderRadius: Math.round(height * 0.07) },
+      ]}
+    >
+      {/* Outer diamond */}
+      <View
+        style={{
+          width: width * 0.6,
+          height: height * 0.6,
+          borderWidth: 1.5,
+          borderColor: THEME.gold,
+          transform: [{ rotate: '45deg' }],
+          position: 'absolute',
+        }}
+      />
+      {/* Inner diamond */}
+      <View
+        style={{
+          width: width * 0.38,
+          height: height * 0.38,
+          borderWidth: 1,
+          borderColor: THEME.goldLight,
+          transform: [{ rotate: '45deg' }],
+          position: 'absolute',
+        }}
+      />
+    </View>
+  );
+}
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
+
 export function Card({
   card,
   onPress,
@@ -27,38 +70,62 @@ export function Card({
   isValid = false,
   faceDown = false,
   isDisabled = false,
+  width = 70,
+  height = 100,
 }: CardProps) {
   const isRed = RED_SUITS.has(card.suit);
   const symbol = SUIT_SYMBOLS[card.suit] ?? '';
+  const suitColour = isRed ? THEME.cardRed : THEME.cardBlack;
+
+  const rankFontSize = Math.round(height * 0.14);
+  const suitFontSize = Math.round(height * 0.24);
+  const borderRadius = Math.round(height * 0.07);
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
       style={[
         styles.card,
+        {
+          width,
+          height,
+          borderRadius,
+        },
         isSelected && styles.selected,
         isValid && !isSelected && styles.valid,
-        faceDown && styles.faceDown,
         isDisabled && styles.disabled,
       ]}
       disabled={!onPress}
     >
       {faceDown ? (
-        <View style={styles.cardBack}>
-          <Text style={styles.backPattern}>◆ ◆</Text>
-          <Text style={styles.backPattern}>◆ ◆</Text>
-        </View>
+        <CardBack width={width} height={height} />
       ) : (
-        <View style={styles.cardFace}>
-          <View style={styles.rankCorner}>
-            <Text style={[styles.rank, isRed ? styles.red : styles.dark]}>
+        <View style={[styles.cardFace, { borderRadius }]}>
+          {/* Top-left rank + suit */}
+          <View style={styles.rankCornerTL}>
+            <Text style={[styles.rankText, { fontSize: rankFontSize, color: suitColour }]}>
               {card.rank}
             </Text>
+            <Text style={[styles.suitSmall, { fontSize: rankFontSize - 2, color: suitColour }]}>
+              {symbol}
+            </Text>
           </View>
-          <Text style={[styles.suitCenter, isRed ? styles.red : styles.dark]}>
+
+          {/* Centre suit symbol */}
+          <Text style={[styles.suitCenter, { fontSize: suitFontSize, color: suitColour }]}>
             {symbol}
           </Text>
+
+          {/* Bottom-right rank + suit (rotated 180°) */}
+          <View style={[styles.rankCornerBR, { transform: [{ rotate: '180deg' }] }]}>
+            <Text style={[styles.rankText, { fontSize: rankFontSize, color: suitColour }]}>
+              {card.rank}
+            </Text>
+            <Text style={[styles.suitSmall, { fontSize: rankFontSize - 2, color: suitColour }]}>
+              {symbol}
+            </Text>
+          </View>
         </View>
       )}
     </TouchableOpacity>
@@ -69,74 +136,75 @@ const styles = StyleSheet.create({
   card: {
     width: 70,
     height: 100,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ccc',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
     overflow: 'hidden',
   },
   selected: {
-    borderColor: '#4A90E2',
-    borderWidth: 2.5,
-    shadowColor: '#4A90E2',
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
+    borderColor: THEME.gold,
+    borderWidth: 2,
+    shadowColor: THEME.gold,
+    shadowOpacity: 0.55,
+    shadowRadius: 8,
+    // Lift handled by parent transform in Hand component
   },
   valid: {
-    borderColor: '#43a047',
-    borderWidth: 2,
-    shadowColor: '#43a047',
-    shadowOpacity: 0.55,
+    borderColor: THEME.goldLight,
+    borderWidth: 1.5,
+    shadowColor: THEME.gold,
+    shadowOpacity: 0.3,
     shadowRadius: 5,
   },
-  faceDown: {
-    backgroundColor: '#1a237e',
-    borderColor: '#283593',
-  },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
+  // Face-down card — navy with gold diamond pattern
   cardBack: {
-    flex: 1,
+    backgroundColor: THEME.cardBack,
+    borderWidth: 1,
+    borderColor: THEME.gold,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    overflow: 'hidden',
   },
-  backPattern: {
-    fontSize: 14,
-    color: '#5c6bc0',
-    letterSpacing: 2,
-  },
+  // Face-up card — warm white
   cardFace: {
     flex: 1,
+    backgroundColor: THEME.cardFace,
+    borderWidth: 1,
+    borderColor: THEME.cardBorder,
   },
-  rankCorner: {
+  rankCornerTL: {
     position: 'absolute',
-    top: 5,
-    left: 6,
+    top: 4,
+    left: 5,
+    alignItems: 'center',
   },
-  rank: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 17,
+  rankCornerBR: {
+    position: 'absolute',
+    bottom: 4,
+    right: 5,
+    alignItems: 'center',
+  },
+  rankText: {
+    fontWeight: '800',
+    lineHeight: 16,
+  },
+  suitSmall: {
+    lineHeight: 13,
   },
   suitCenter: {
     position: 'absolute',
-    top: 37,
+    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 24,
-  },
-  red: {
-    color: '#c62828',
-  },
-  dark: {
-    color: '#1a1a1a',
+    textAlignVertical: 'center',
+    // web fallback
+    lineHeight: 100,
   },
 });

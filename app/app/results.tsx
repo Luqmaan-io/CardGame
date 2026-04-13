@@ -15,7 +15,8 @@ import { useGameStore } from '../store/gameStore';
 import { Confetti } from '../components/Confetti';
 import { useSounds } from '../hooks/useSounds';
 import { useHaptics } from '../hooks/useHaptics';
-import Avatar from '../components/Avatar';
+import Avatar from '../components/Avatar'
+import { THEME } from '../utils/theme';
 
 interface Standing {
   id: string;
@@ -234,7 +235,7 @@ export default function ResultsScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: THEME.appBackground,
   },
   container: {
     flex: 1,
@@ -256,12 +257,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 34,
     fontWeight: '800',
-    color: '#ffd54f',
+    color: THEME.gold,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: '#616161',
+    color: THEME.textMuted,
     textAlign: 'center',
     fontWeight: '500',
     textTransform: 'uppercase',
@@ -273,7 +274,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e1e1e',
+    backgroundColor: THEME.cardBackground,
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
@@ -282,17 +283,17 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   winnerRow: {
-    backgroundColor: '#1a3a1a',
+    backgroundColor: THEME.surfaceBackground,
     borderWidth: 1.5,
   },
   position: {
-    color: '#616161',
+    color: THEME.textMuted,
     fontSize: 15,
     width: 32,
     fontWeight: '600',
   },
   playerName: {
-    color: '#fff',
+    color: THEME.textPrimary,
     fontSize: 16,
     flex: 1,
     fontWeight: '500',
@@ -302,42 +303,44 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cardCount: {
-    color: '#9e9e9e',
+    color: THEME.textSecondary,
     fontSize: 13,
   },
   scoreBadge: {
-    backgroundColor: 'rgba(76,175,80,0.15)',
+    backgroundColor: 'rgba(201,168,76,0.15)',
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   scoreText: {
-    color: '#4caf50',
+    color: THEME.gold,
     fontSize: 11,
     fontWeight: '700',
   },
   crown: {
     fontSize: 18,
-    color: '#ffd54f',
+    color: THEME.gold,
   },
   primaryBtn: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: THEME.gold,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
   },
   primaryBtnText: {
-    color: '#fff',
+    color: THEME.appBackground,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   secondaryBtn: {
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.2)',
   },
   secondaryBtnText: {
-    color: '#616161',
+    color: THEME.textMuted,
     fontSize: 15,
   },
 });

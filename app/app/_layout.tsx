@@ -4,6 +4,7 @@ import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { THEME } from '../utils/theme';
 
 // Initialise the socket connection once at the app root
 function SocketProvider() {
@@ -42,7 +43,7 @@ function AuthGate() {
 function LoadingScreen() {
   return (
     <View style={styles.loading}>
-      <ActivityIndicator size="large" color="#4caf50" />
+      <ActivityIndicator size="large" color={THEME.gold} />
     </View>
   );
 }
@@ -58,10 +59,10 @@ function RootLayoutInner() {
       <AuthGate />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#1b5e20' },
-          headerTintColor: '#fff',
-          headerTitleStyle: { fontWeight: '600' },
-          contentStyle: { backgroundColor: '#121212' },
+          headerStyle: { backgroundColor: THEME.cardBackground },
+          headerTintColor: THEME.gold,
+          headerTitleStyle: { fontWeight: '600', color: THEME.textPrimary },
+          contentStyle: { backgroundColor: THEME.appBackground },
         }}
       >
         <Stack.Screen name="index" options={{ title: 'Card Game', headerShown: false }} />
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   loading: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: THEME.appBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },

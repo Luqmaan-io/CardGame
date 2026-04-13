@@ -6,19 +6,22 @@ import {
   StyleSheet,
   SafeAreaView,
   useWindowDimensions,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSocket } from '../hooks/useSocket';
 import { useLocalGame } from '../hooks/useLocalGame';
 import { useGameStore } from '../store/gameStore';
-import { GameBoard } from '../components/GameBoard';
+import { RoundTable } from '../components/RoundTable';
 import { SuitPicker } from '../components/SuitPicker';
-import { TurnTimer } from '../components/TurnTimer';
 import { Toast, ToastMessage } from '../components/Toast';
 import { AnimationOverlay, AnimationOverlayHandle, animId } from '../components/AnimationOverlay';
 import { useSounds } from '../hooks/useSounds';
 import { useHaptics } from '../hooks/useHaptics';
 import { HowToPlayModal } from '../components/HowToPlayModal';
+import { LastMoveBanner } from '../components/LastMoveBanner';
+import type { HistoryEntry } from '../components/GameHistoryPanel';
+import { THEME } from '../utils/theme';
 import { getGamePositions } from '../utils/animations';
 import { measurePosition, centreOf } from '../utils/measurePosition';
 import { getValidPlays } from '../../engine/ai';
@@ -122,6 +125,12 @@ export default function GameScreen() {
   // ── How to play modal ─────────────────────────────────────────────────────
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const modalOpenedAtRef = useRef<number | null>(null);
+
+  // ── Menu sheet ────────────────────────────────────────────────────────────
+  const [showMenu, setShowMenu] = useState(false);
+
+  // ── Last move (most recent completed move) ────────────────────────────────
+  const [lastMove, setLastMove] = useState<HistoryEntry | null>(null);
 
   // ── Auth context (for stats recording) ────────────────────────────────────
   const { profile, isGuest } = useAuth();
@@ -576,6 +585,57 @@ export default function GameScreen() {
       addToast('Reshuffling deck…');
     }
 
+    // ── History tracking ──────────────────────────────────────────────────
+    if (prevGameStateRef.current) {
+      // Detect a play: discard top changed
+      if (discardKey !== prevDiscardTopRef.current && discardKey !== null && discardTop) {
+        const justPlayedBy = gameState.players.find((p) => {
+          const prev = prevGameStateRef.current?.players.find((pp) => pp.id === p.id);
+          return prev && prev.hand.length > p.hand.length;
+        });
+        if (justPlayedBy) {
+          const prevPlayer = prevGameStateRef.current?.players.find((pp) => pp.id === justPlayedBy.id);
+          const cardsPlayed = prevPlayer
+            ? prevPlayer.hand.filter(
+                (c) => !justPlayedBy.hand.some((nc) => nc.rank === c.rank && nc.suit === c.suit)
+              )
+            : [discardTop];
+          const entry: HistoryEntry = {
+            playerId: justPlayedBy.id,
+            playerName: isLocalMode
+              ? (localPlayerNames[justPlayedBy.id] ?? justPlayedBy.id.slice(0, 8))
+              : justPlayedBy.id.slice(0, 8),
+            playerColour: justPlayedBy.colourHex ?? THEME.info,
+            playerAvatarId: (justPlayedBy as { avatarId?: string }).avatarId ?? 'avatar_01',
+            cards: cardsPlayed,
+            timestamp: Date.now(),
+            action: 'play',
+          };
+          setLastMove(entry);
+        }
+      }
+
+      // Detect a draw: hand length increased and no new discard
+      if (
+        discardKey === prevDiscardTopRef.current &&
+        myHandLength > prevHandLength
+      ) {
+        const drawCount = myHandLength - prevHandLength;
+        const entry: HistoryEntry = {
+          playerId: myPlayerId,
+          playerName: isLocalMode
+            ? (localPlayerNames[myPlayerId] ?? 'You')
+            : 'You',
+          playerColour: myPlayer?.colourHex ?? THEME.info,
+          playerAvatarId: (myPlayer as { avatarId?: string } | undefined)?.avatarId ?? 'avatar_01',
+          cards: myPlayer?.hand.slice(-drawCount) ?? [],
+          timestamp: Date.now(),
+          action: prevPending > 0 ? 'penalty' : 'draw',
+        };
+        setLastMove(entry);
+      }
+    }
+
     prevGameStateRef.current = gameState;
     prevMyHandLengthRef.current = myHandLength;
     prevDiscardTopRef.current = discardKey;
@@ -789,11 +849,11 @@ export default function GameScreen() {
     }
     if (hasPendingPickup) {
       const type = gameState!.pendingPickupType === 'jack' ? 'J' : '2';
-      return `Draw ${gameState!.pendingPickup} (${type}) or counter`;
+      return `Pick up ${gameState!.pendingPickup} (${type}) or counter`;
     }
     if (gameState!.phase === 'cover') return 'Cover the Queen';
-    if (gameState!.phase === 'pickup') return `Draw ${gameState!.pendingPickup} cards`;
-    return 'Your turn';
+    if (gameState!.phase === 'pickup') return `Pick up ${gameState!.pendingPickup} cards`;
+    return '';
   }
 
   function handleCardSelect(card: Card) {
@@ -992,6 +1052,10 @@ export default function GameScreen() {
   const messageIsPlayerTurn = !isDealing && !isMyTurn && gameState.phase !== 'declare-suit';
   const messageColourHex = messageIsPlayerTurn ? currentPlayerColourHex : undefined;
 
+  const currentPlayerName = isLocalMode
+    ? (localPlayerNames[currentPlayer?.id ?? ''] ?? currentPlayer?.id?.slice(0, 8) ?? '')
+    : (currentPlayer?.id?.slice(0, 8) ?? '');
+
   return (
     <SafeAreaView style={styles.safe}>
       <Toast
@@ -999,25 +1063,14 @@ export default function GameScreen() {
         onExpire={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
       />
 
-      {/* Mute toggle */}
-      <TouchableOpacity style={styles.muteBtn} onPress={toggleMute}>
-        <Text style={styles.muteBtnText}>{isMuted ? '🔇' : '🔊'}</Text>
-      </TouchableOpacity>
+      {/* Last move banner — top of screen */}
+      <LastMoveBanner entry={lastMove} />
 
-      {/* How to play button */}
-      <TouchableOpacity
-        style={styles.howToPlayBtn}
-        onPress={() => {
-          if (!showHowToPlay) {
-            modalOpenedAtRef.current = Date.now();
-          } else if (isLocalMode && modalOpenedAtRef.current !== null) {
-            adjustTurnStartedAt(Date.now() - modalOpenedAtRef.current);
-            modalOpenedAtRef.current = null;
-          }
-          setShowHowToPlay((v) => !v);
-        }}
-      >
-        <Text style={styles.howToPlayBtnText}>?</Text>
+      {/* ── Menu button — hamburger top-left ─────────────────────────────── */}
+      <TouchableOpacity style={styles.menuBtn} onPress={() => setShowMenu(true)}>
+        <View style={styles.menuLine} />
+        <View style={styles.menuLine} />
+        <View style={styles.menuLine} />
       </TouchableOpacity>
 
       {/* Skip deal button — only visible while dealing */}
@@ -1027,98 +1080,49 @@ export default function GameScreen() {
         </TouchableOpacity>
       )}
 
-      <GameBoard
+      <RoundTable
         gameState={gameState}
         myPlayerId={myPlayerId}
-        validPlays={validPlays}
-        selectedCards={selectedCards}
         onCardSelect={(!isMyTurn || localActionDisabled || hasActed) ? () => {} : handleCardSelect}
-        onClearSelection={clearSelection}
+        onPlay={handlePlay}
+        onDraw={handleDraw}
+        onDeclareOnCards={handleDeclareOnCards}
+        selectedCards={selectedCards}
+        validPlays={validPlays}
         isMyTurn={isMyTurn && !isAIThinking && !hasActed && !isDealing}
-        selectionDisabled={localActionDisabled || hasActed}
-        playerNames={playerNamesMap}
-        message={getMessage()}
-        flashingPlayerId={flashingPlayerId}
         isDealing={isDealing}
         dealtCardCounts={dealtCardCounts ?? undefined}
         deckCountOverride={deckCountOverride}
-        drawPileRef={drawPileRef}
-        discardPileRef={discardPileRef}
-        humanHandRef={humanHandRef}
-        opponentRefs={opponentRefs}
+        connectionState={connectionState}
+        isAIThinking={isAIThinking}
+        showOnCardsWindow={showOnCardsWindow}
+        onCardsCountdown={onCardsCountdown}
+        onCancelOnCards={closeOnCardsWindow}
+        onCardsActive={onCardsActive}
+        autoDrawCountdown={autoDrawCountdown}
+        onCancelAutoDraw={cancelAutoDraw}
+        timerStartedAt={isDealing ? null : timerStartedAt}
+        currentPlayerColourHex={currentPlayerColourHex}
+        currentPlayerName={currentPlayerName}
+        playerNames={playerNamesMap}
+        flashingPlayerId={flashingPlayerId}
         isReconnecting={!isLocalMode && (connectionState === 'disconnected' || connectionState === 'reconnecting')}
         onReconnectTimeout={() => {
           useGameStore.getState().setError('You were removed from the game');
           router.replace('/');
         }}
+        drawPileRef={drawPileRef}
+        discardPileRef={discardPileRef}
+        humanHandRef={humanHandRef}
+        opponentRefs={opponentRefs}
+        selectionDisabled={localActionDisabled || hasActed}
+        message={getMessage()}
         messageColourHex={messageColourHex}
+        hasPendingPickup={hasPendingPickup}
+        pendingPickupCount={gameState.pendingPickup}
       />
 
       <AnimationOverlay ref={overlayRef} />
-
-      {/* Timer — shown in all game modes, hidden during deal */}
-      {!isDealing && (
-        <TurnTimer timerStartedAt={timerStartedAt} currentPlayerColourHex={currentPlayerColourHex} />
-      )}
-
-      {showPreAction && (
-        <View style={styles.actionBar}>
-          <TouchableOpacity style={styles.drawBtn} onPress={handleDraw}>
-            <Text style={styles.drawBtnText}>
-              {hasPendingPickup ? `Draw ${gameState.pendingPickup}` : 'Draw card'}
-            </Text>
-          </TouchableOpacity>
-
-          {selectedCards.length > 0 && (
-            <TouchableOpacity style={styles.playBtn} onPress={handlePlay}>
-              <Text style={styles.playBtnText}>
-                Play{selectedCards.length > 1 ? ` (${selectedCards.length})` : ''}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-      {/* ── On-cards declaration window ───────────────────────────────── */}
-      {showOnCardsWindow && (
-        <View style={styles.onCardsOverlay}>
-          <View style={styles.onCardsCard}>
-            <Text style={styles.onCardsHandCount}>
-              You have {gameState.players.find((p) => p.id === myPlayerId)?.hand.length ?? 0} card{(gameState.players.find((p) => p.id === myPlayerId)?.hand.length ?? 0) !== 1 ? 's' : ''} left
-            </Text>
-            {!onCardsActive ? (
-              <TouchableOpacity style={styles.onCardsBigBtn} onPress={handleDeclareOnCards}>
-                <Text style={styles.onCardsBigBtnText}>I'm on cards!</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.declaredBadge}>
-                <Text style={styles.declaredBadgeText}>Already declared!</Text>
-              </View>
-            )}
-            {/* Countdown bar */}
-            <View style={styles.countdownTrack}>
-              <View style={[styles.countdownFill, { flex: onCardsCountdown / 3 }]} />
-              <View style={{ flex: (3 - onCardsCountdown) / 3 }} />
-            </View>
-            <Text style={styles.countdownLabel}>{onCardsCountdown}s</Text>
-          </View>
-        </View>
-      )}
-
-      {/* ── Auto-draw countdown overlay ───────────────────────────────── */}
-      {autoDrawCountdown !== null && (
-        <View style={styles.autoDrawOverlay}>
-          <View style={styles.autoDrawCard}>
-            <Text style={styles.autoDrawTitle}>No counter available</Text>
-            <Text style={styles.autoDrawSub}>
-              Drawing {gameState.pendingPickup} card{gameState.pendingPickup !== 1 ? 's' : ''} in {autoDrawCountdown}…
-            </Text>
-            <TouchableOpacity style={styles.autoDrawCancelBtn} onPress={cancelAutoDraw}>
-              <Text style={styles.autoDrawCancelText}>Cancel — draw manually</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
 
       <HowToPlayModal
         visible={showHowToPlay}
@@ -1132,6 +1136,78 @@ export default function GameScreen() {
       />
 
       <SuitPicker visible={showSuitPicker} onSelect={handleDeclareSuit} />
+
+      {/* ── Game menu bottom sheet ─────────────────────────────────────── */}
+      {showMenu && (
+        <View style={styles.menuOverlay}>
+          <TouchableOpacity
+            style={styles.menuBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowMenu(false)}
+          />
+          <View style={styles.menuSheet}>
+            <View style={styles.menuHandle} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                modalOpenedAtRef.current = Date.now();
+                setShowHowToPlay(true);
+              }}
+            >
+              <Text style={styles.menuItemText}>How to play</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => { toggleMute(); setShowMenu(false); }}
+            >
+              <Text style={styles.menuItemText}>
+                {isMuted ? 'Unmute sounds' : 'Mute sounds'}
+              </Text>
+              <Text style={styles.menuItemMeta}>{isMuted ? '🔇' : '🔊'}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity
+              style={[styles.menuItem]}
+              onPress={() => {
+                setShowMenu(false);
+                Alert.alert(
+                  'Leave game?',
+                  isLocalMode
+                    ? 'Your game progress will be lost.'
+                    : 'You will forfeit this game and your opponent wins.',
+                  [
+                    { text: 'Stay', style: 'cancel' },
+                    {
+                      text: 'Leave',
+                      style: 'destructive',
+                      onPress: () => {
+                        if (!isLocalMode) useGameStore.getState().reset();
+                        router.replace('/');
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: THEME.danger }]}>Leave game</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, styles.menuCloseBtn]}
+              onPress={() => setShowMenu(false)}
+            >
+              <Text style={styles.menuCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1141,219 +1217,112 @@ export default function GameScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#1b5e20',
+    backgroundColor: THEME.appBackground,
   },
   loading: {
     flex: 1,
-    backgroundColor: '#1b5e20',
+    backgroundColor: THEME.appBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: THEME.textSecondary,
     fontSize: 16,
   },
-  muteBtn: {
-    position: 'absolute',
-    top: 52,
-    right: 14,
-    zIndex: 50,
-    padding: 6,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  muteBtnText: {
-    fontSize: 20,
-  },
-  howToPlayBtn: {
+  // ── Menu hamburger button ─────────────────────────────────────────────────
+  menuBtn: {
     position: 'absolute',
     top: 52,
     left: 14,
     zIndex: 50,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(13,27,42,0.7)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(201,168,76,0.3)',
   },
-  howToPlayBtnText: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 16,
-    fontWeight: '700',
+  menuLine: {
+    width: 20,
+    height: 2,
+    backgroundColor: THEME.gold,
+    borderRadius: 1,
   },
+  // ── Skip deal button ──────────────────────────────────────────────────────
   skipBtn: {
     position: 'absolute',
-    top: 92,
+    top: 52,
     right: 14,
     zIndex: 50,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(13,27,42,0.7)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(201,168,76,0.4)',
   },
   skipBtnText: {
-    color: 'rgba(255,255,255,0.75)',
+    color: THEME.gold,
     fontSize: 13,
-    fontWeight: '600',
-  },
-  actionBar: {
-    flexDirection: 'row',
-    padding: 12,
-    gap: 10,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    paddingBottom: 16,
-  },
-  drawBtn: {
-    flex: 1,
-    backgroundColor: '#4e342e',
-    borderRadius: 12,
-    padding: 15,
-    alignItems: 'center',
-  },
-  drawBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  playBtn: {
-    flex: 2,
-    backgroundColor: '#2e7d32',
-    borderRadius: 12,
-    padding: 15,
-    alignItems: 'center',
-  },
-  playBtnText: {
-    color: '#fff',
-    fontSize: 15,
     fontWeight: '700',
   },
-  // ── On-cards declaration window ────────────────────────────────────────────
-  onCardsOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    top: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
+  // ── Menu bottom sheet ─────────────────────────────────────────────────────
+  menuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 200,
     justifyContent: 'flex-end',
-    zIndex: 120,
-    paddingBottom: 24,
   },
-  onCardsCard: {
-    backgroundColor: '#1a237e',
-    borderRadius: 20,
-    padding: 24,
-    width: '88%',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,193,7,0.45)',
-    gap: 14,
+  menuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  onCardsHandCount: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+  menuSheet: {
+    backgroundColor: THEME.cardBackground,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 36,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: THEME.gold,
   },
-  onCardsBigBtn: {
-    backgroundColor: '#ffc107',
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    width: '100%',
+  menuHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: THEME.textMuted,
+    alignSelf: 'center',
+    marginBottom: 16,
   },
-  onCardsBigBtnText: {
-    color: '#1a237e',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  countdownTrack: {
+  menuItem: {
     flexDirection: 'row',
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    overflow: 'hidden',
-    width: '100%',
-  },
-  countdownFill: {
-    backgroundColor: '#ffc107',
-    borderRadius: 3,
-  },
-  countdownLabel: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  declaredBadge: {
-    backgroundColor: 'rgba(76,175,80,0.15)',
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
     alignItems: 'center',
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(76,175,80,0.35)',
-  },
-  declaredBadgeText: {
-    color: '#81c784',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // ── Auto-draw countdown overlay ────────────────────────────────────────────
-  autoDrawOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    top: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    zIndex: 120,
-    paddingBottom: 24,
-  },
-  autoDrawCard: {
-    backgroundColor: '#4e342e',
-    borderRadius: 20,
-    padding: 24,
-    width: '88%',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,87,34,0.45)',
-    gap: 12,
-  },
-  autoDrawTitle: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  autoDrawSub: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  autoDrawCancelBtn: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 12,
-    paddingVertical: 12,
     paddingHorizontal: 24,
-    alignItems: 'center',
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 18,
+    justifyContent: 'space-between',
   },
-  autoDrawCancelText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
+  menuItemText: {
+    color: THEME.textPrimary,
+    fontSize: 17,
     fontWeight: '600',
+  },
+  menuItemMeta: {
+    fontSize: 18,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: 'rgba(201,168,76,0.12)',
+    marginHorizontal: 24,
+  },
+  menuCloseBtn: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(201,168,76,0.12)',
+    justifyContent: 'center',
+  },
+  menuCloseText: {
+    color: THEME.textMuted,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

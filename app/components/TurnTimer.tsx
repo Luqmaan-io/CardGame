@@ -1,14 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { THEME } from '../utils/theme';
 
 const TURN_SECONDS = 30;
 
 interface TurnTimerProps {
   timerStartedAt: number | null;
   currentPlayerColourHex?: string;
+  isMyTurn?: boolean;
+  currentPlayerName?: string;
 }
 
-export function TurnTimer({ timerStartedAt, currentPlayerColourHex }: TurnTimerProps) {
+export function TurnTimer({
+  timerStartedAt,
+  currentPlayerColourHex,
+  isMyTurn = false,
+  currentPlayerName,
+}: TurnTimerProps) {
   const [secondsLeft, setSecondsLeft] = useState(TURN_SECONDS);
 
   useEffect(() => {
@@ -28,33 +36,53 @@ export function TurnTimer({ timerStartedAt, currentPlayerColourHex }: TurnTimerP
   }, [timerStartedAt]);
 
   const fraction = secondsLeft / TURN_SECONDS;
-  // Use the player's assigned colour at full time; switch to urgency colours as time runs out.
   const color =
     secondsLeft <= 8
-      ? '#f44336'
+      ? THEME.danger
       : secondsLeft <= 15
-      ? '#ff9800'
-      : (currentPlayerColourHex ?? '#4caf50');
+      ? THEME.warning
+      : (currentPlayerColourHex ?? THEME.success);
 
   return (
     <View style={styles.container}>
-      <View style={styles.track}>
-        <View style={[styles.fill, { flex: fraction, backgroundColor: color }]} />
-        <View style={{ flex: 1 - fraction }} />
+      {/* Turn label */}
+      <View style={styles.labelRow}>
+        <Text style={[styles.turnLabel, { color: isMyTurn ? THEME.gold : THEME.textSecondary }]}>
+          {isMyTurn ? 'Your turn' : currentPlayerName ? `${currentPlayerName}'s turn` : ''}
+        </Text>
       </View>
-      <Text style={[styles.label, { color }]}>{secondsLeft}s</Text>
+
+      {/* Progress bar */}
+      <View style={styles.barRow}>
+        <View style={styles.track}>
+          <View style={[styles.fill, { flex: fraction, backgroundColor: color }]} />
+          <View style={{ flex: 1 - fraction }} />
+        </View>
+        <Text style={[styles.label, { color }]}>{secondsLeft}s</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 6,
+    backgroundColor: 'transparent',
+    gap: 4,
+  },
+  labelRow: {
+    alignItems: 'center',
+  },
+  turnLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  barRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   track: {
     flex: 1,

@@ -6,8 +6,10 @@ import type { Card as CardType, Suit } from '../../engine/types';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const VISIBLE_STACK = 5;
-const CARD_W = 70;
-const CARD_H = 100;
+const CARD_W = 52;
+const CARD_H = 76;
+const CONTAINER_W = 60;
+const CONTAINER_H = 90;
 
 const SUIT_SYMBOLS: Record<Suit, string> = {
   hearts: '♥',
@@ -45,12 +47,13 @@ function getCardOffset(card: CardType, indexInPile: number, isTop: boolean): Car
   const r2 = seededRandom(base + 50);
   const r3 = seededRandom(base + 100);
 
-  // Top card is most readable — tighter rotation range
-  const rotRange = isTop ? 10 : 24;
+  // Top card: ±5° max, no x/y offset — always readable
+  // Under cards: up to ±15°, small random offsets
+  const rotRange = isTop ? 10 : 30;
   return {
-    rot: r1 * rotRange - rotRange / 2, // [-rotRange/2, rotRange/2]
-    dx: r2 * 12 - 6,                   // [-6, +6]
-    dy: r3 * 8 - 4,                    // [-4, +4]
+    rot: r1 * rotRange - rotRange / 2, // top: [-5, +5], others: [-15, +15]
+    dx: isTop ? 0 : r2 * 14 - 7,      // top: 0, others: [-7, +7]
+    dy: isTop ? 0 : r3 * 10 - 5,      // top: 0, others: [-5, +5]
   };
 }
 
@@ -158,7 +161,7 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
                 },
               ]}
             >
-              <Card card={card} />
+              <Card card={card} width={CARD_W} height={CARD_H} />
             </Animated.View>
           );
         }
@@ -179,7 +182,7 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
               },
             ]}
           >
-            <Card card={card} />
+            <Card card={card} width={CARD_W} height={CARD_H} />
           </View>
         );
       })}
@@ -207,11 +210,10 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // Fixed card dimensions; overflow visible so rotated cards and the suit pill
-  // can extend beyond the bounding box without being clipped.
+  // Fixed container; overflow visible so rotated cards and suit pill can extend.
   container: {
-    width: CARD_W,
-    height: CARD_H,
+    width: CONTAINER_W,
+    height: CONTAINER_H,
     position: 'relative',
   },
   cardSlot: {

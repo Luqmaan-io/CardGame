@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { THEME } from '../utils/theme'
 
 type Tab = 'signin' | 'signup'
 
@@ -34,7 +35,7 @@ function passwordStrength(p: string): 'weak' | 'good' | 'strong' {
   return 'weak'
 }
 
-const STRENGTH_COLOURS = { weak: '#ef5350', good: '#ffa726', strong: '#4caf50' }
+const STRENGTH_COLOURS = { weak: THEME.danger, good: THEME.warning, strong: THEME.success }
 
 export default function AuthScreen() {
   const { signIn, signUp, continueAsGuest } = useAuth()
@@ -369,7 +370,7 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: THEME.appBackground,
   },
   scroll: {
     paddingHorizontal: 24,
@@ -380,18 +381,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 38,
     fontWeight: '800',
-    color: '#ffffff',
+    color: THEME.gold,
     textAlign: 'center',
     letterSpacing: 1,
     marginBottom: 40,
   },
   tabRow: {
     flexDirection: 'row',
-    backgroundColor: '#1e1e1e',
+    backgroundColor: THEME.cardBackground,
     borderRadius: 12,
     padding: 4,
     marginBottom: 28,
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.15)',
   },
   tab: {
     flex: 1,
@@ -400,15 +403,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabActive: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: THEME.surfaceBackground,
+    borderWidth: 1,
+    borderColor: THEME.gold,
   },
   tabText: {
-    color: '#757575',
+    color: THEME.textMuted,
     fontWeight: '600',
     fontSize: 15,
   },
   tabTextActive: {
-    color: '#ffffff',
+    color: THEME.gold,
   },
   form: {
     gap: 12,
@@ -417,69 +422,69 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9e9e9e',
+    color: THEME.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: -4,
   },
   input: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: THEME.cardBackground,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#ffffff',
+    color: THEME.textPrimary,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: 'rgba(201,168,76,0.2)',
   },
   inputError: {
-    borderColor: '#ef5350',
+    borderColor: THEME.danger,
   },
   primaryBtn: {
-    backgroundColor: '#2e7d32',
+    backgroundColor: THEME.gold,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 4,
   },
   primaryBtnText: {
-    color: '#ffffff',
+    color: THEME.appBackground,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   btnDisabled: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: THEME.cardBackground,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: 'rgba(201,168,76,0.15)',
   },
   btnDisabledText: {
-    color: '#505050',
+    color: THEME.textMuted,
   },
   error: {
-    color: '#ef5350',
+    color: THEME.danger,
     fontSize: 13,
     fontWeight: '500',
   },
   fieldError: {
-    color: '#ef5350',
+    color: THEME.danger,
     fontSize: 12,
     marginTop: -6,
   },
   successMsg: {
-    color: '#4caf50',
+    color: THEME.success,
     fontSize: 13,
     fontWeight: '500',
   },
   successCard: {
-    backgroundColor: '#1b3a1f',
+    backgroundColor: 'rgba(93,202,165,0.08)',
     borderRadius: 12,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#2e7d32',
+    borderColor: THEME.success,
     alignItems: 'center',
   },
   successCardText: {
-    color: '#4caf50',
+    color: THEME.success,
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
@@ -505,7 +510,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   textBtnText: {
-    color: '#616161',
+    color: THEME.textMuted,
     fontSize: 13,
   },
   guestBtn: {
@@ -516,27 +521,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   guestBtnText: {
-    color: '#616161',
+    color: THEME.textMuted,
     fontSize: 14,
     textDecorationLine: 'underline',
   },
   sheetOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.65)',
   },
   sheet: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: THEME.cardBackground,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
     gap: 16,
     paddingBottom: 40,
+    borderTopWidth: 1,
+    borderColor: THEME.gold,
   },
   sheetTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
+    color: THEME.textPrimary,
     marginBottom: 4,
   },
 })

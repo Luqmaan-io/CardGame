@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   useWindowDimensions,
   Alert,
+  Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSocket } from '../hooks/useSocket';
@@ -155,7 +156,7 @@ export default function GameScreen() {
     lastSuitWonWith: undefined as string | undefined,
   });
 
-  // ── On-cards declaration window (Fix 2) ────────────────────────────────────
+  // ── On-cards declaration window ────────────────────────────────────────────
   const [showOnCardsWindow, setShowOnCardsWindow] = useState(false);
   const [onCardsCountdown, setOnCardsCountdown] = useState(3);
   const onCardsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -163,6 +164,8 @@ export default function GameScreen() {
   // Ref always points to the latest render's startOnCardsWindow so setTimeout
   // callbacks don't capture a stale closure.
   const startOnCardsWindowRef = useRef<() => void>(() => {});
+  // Slide-up animation for the banner
+  const onCardsBannerAnim = useRef(new Animated.Value(40)).current;
 
   // ── Auto-draw countdown (Fix 3) ───────────────────────────────────────────
   const [autoDrawCountdown, setAutoDrawCountdown] = useState<number | null>(null);
@@ -227,6 +230,23 @@ export default function GameScreen() {
   }
   // Always point to the latest render so setTimeout callbacks don't go stale.
   startOnCardsWindowRef.current = startOnCardsWindow;
+
+  // Animate banner in/out when showOnCardsWindow changes
+  useEffect(() => {
+    if (showOnCardsWindow) {
+      Animated.timing(onCardsBannerAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(onCardsBannerAnim, {
+        toValue: 40,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showOnCardsWindow]);
 
   // ── Auto-draw helpers ─────────────────────────────────────────────────────
 
@@ -1106,7 +1126,6 @@ export default function GameScreen() {
         onCardSelect={(!isMyTurn || localActionDisabled || hasActed) ? () => {} : handleCardSelect}
         onPlay={handlePlay}
         onDraw={handleDraw}
-        onDeclareOnCards={handleDeclareOnCards}
         selectedCards={selectedCards}
         validPlays={validPlays}
         isMyTurn={isMyTurn && !isAIThinking && !hasActed && !isDealing}
@@ -1115,9 +1134,6 @@ export default function GameScreen() {
         deckCountOverride={deckCountOverride}
         connectionState={connectionState}
         isAIThinking={isAIThinking}
-        showOnCardsWindow={showOnCardsWindow}
-        onCardsCountdown={onCardsCountdown}
-        onCancelOnCards={closeOnCardsWindow}
         onCardsActive={onCardsActive}
         autoDrawCountdown={autoDrawCountdown}
         onCancelAutoDraw={cancelAutoDraw}
@@ -1156,6 +1172,76 @@ export default function GameScreen() {
       />
 
       <SuitPicker visible={showSuitPicker} onSelect={handleDeclareSuit} />
+
+      {/* ── On-cards declaration banner — slides up from above action buttons ── */}
+      {showOnCardsWindow && (
+        <Animated.View style={{
+          position: 'absolute',
+          bottom: 220,
+          left: 24,
+          right: 24,
+          backgroundColor: 'rgba(13, 27, 42, 0.92)',
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: THEME.gold,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          zIndex: 50,
+          transform: [{ translateY: onCardsBannerAnim }],
+        }}>
+          {/* Left side — countdown label and bar */}
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: THEME.textSecondary, fontSize: 11 }}>
+              {onCardsCountdown}s remaining
+            </Text>
+            <View style={{
+              width: 120,
+              height: 2,
+              backgroundColor: 'rgba(201, 168, 76, 0.2)',
+              borderRadius: 1,
+            }}>
+              <View style={{
+                width: `${(onCardsCountdown / 3) * 100}%`,
+                height: 2,
+                backgroundColor: THEME.gold,
+                borderRadius: 1,
+              }} />
+            </View>
+          </View>
+
+          {/* Right side — declare or confirmed */}
+          {!onCardsActive ? (
+            <TouchableOpacity
+              onPress={handleDeclareOnCards}
+              style={{
+                backgroundColor: THEME.gold,
+                borderRadius: 8,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+              }}
+            >
+              <Text style={{ color: THEME.appBackground, fontSize: 13, fontWeight: '500' }}>
+                I'm on cards!
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{
+              borderRadius: 8,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderWidth: 1,
+              borderColor: THEME.success,
+            }}>
+              <Text style={{ color: THEME.success, fontSize: 13, fontWeight: '500' }}>
+                Declared!
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+      )}
 
       {/* ── Game menu bottom sheet ─────────────────────────────────────── */}
       {showMenu && (
@@ -1208,7 +1294,11 @@ export default function GameScreen() {
                       text: 'Leave',
                       style: 'destructive',
                       onPress: () => {
-                        if (!isLocalMode) useGameStore.getState().reset();
+                        if (!isLocalMode) {
+                          const { socket: s, roomId: rId, myPlayerId: pid } = useGameStore.getState();
+                          s?.emit('room:leave', { roomId: rId, playerId: pid });
+                          useGameStore.getState().reset();
+                        }
                         router.replace('/');
                       },
                     },

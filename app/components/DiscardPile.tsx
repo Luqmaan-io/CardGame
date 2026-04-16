@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, View, Text, StyleSheet } from 'react-native';
 import { Card } from './Card';
 import type { Card as CardType, Suit } from '../../engine/types';
@@ -28,16 +28,16 @@ interface CardOffset {
   offsetY: number;
 }
 
-function getCardOffset(card: CardType, index: number): CardOffset {
+function calcCardOffset(card: CardType, index: number): CardOffset {
   if (index === 0) {
     return { rotation: 0, offsetX: 0, offsetY: 0 };
   }
   const seed = card.rank.charCodeAt(0) + card.suit.charCodeAt(0);
-  const direction = seed % 2 === 0 ? 1 : -1; // alternates left/right based on card identity
+  const direction = seed % 2 === 0 ? 1 : -1;
   return {
-    rotation: direction * (18 * index),  // 18°, 36°, 54°
-    offsetX: direction * (22 * index),   // spreads left and right
-    offsetY: index * 8,                  // slight downward cascade
+    rotation: direction * (18 * index),
+    offsetX: direction * (22 * index),
+    offsetY: index * 8,
   };
 }
 
@@ -51,6 +51,35 @@ interface DiscardPileProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
+  // ── Stable offset cache — prevents existing card rotations from jumping when a new card lands
+  const offsetsRef = useRef<Record<string, CardOffset>>({});
+  const recentCards = useMemo(
+    () => discard.slice(-FAN_SIZE).reverse(), // [top, 2nd, 3rd, bottom]
+    [discard]
+  );
+
+  function getCardKey(card: CardType, index: number) {
+    return `${card.rank}${card.suit}${index}`;
+  }
+
+  function getStableOffset(card: CardType, index: number): CardOffset {
+    const key = getCardKey(card, index);
+    if (!offsetsRef.current[key]) {
+      offsetsRef.current[key] = calcCardOffset(card, index);
+    }
+    return offsetsRef.current[key]!;
+  }
+
+  // Prune keys that no longer correspond to the current fan
+  useEffect(() => {
+    const validKeys = new Set(recentCards.map((card, i) => getCardKey(card, i)));
+    for (const key of Object.keys(offsetsRef.current)) {
+      if (!validKeys.has(key)) {
+        delete offsetsRef.current[key];
+      }
+    }
+  }, [recentCards]);
+
   // ── Active suit fade ──────────────────────────────────────────────────────────
   const suitOpacity = useRef(new Animated.Value(activeSuit ? 1 : 0)).current;
 
@@ -86,8 +115,6 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
   }, [discard.length]);
 
   // ── Render ────────────────────────────────────────────────────────────────────
-  // Take the most recent FAN_SIZE cards. Index 0 = top card (most recent).
-  const recentCards = discard.slice(-FAN_SIZE).reverse(); // [top, 2nd, 3rd, bottom]
 
   return (
     <View style={styles.container}>
@@ -97,7 +124,7 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
       {[...recentCards].reverse().map((card, reversedIdx) => {
         // reversedIdx counts from the bottom; convert back to fan index
         const fanIdx = recentCards.length - 1 - reversedIdx;
-        const { rotation, offsetX, offsetY } = getCardOffset(card, fanIdx);
+        const { rotation, offsetX, offsetY } = getStableOffset(card, fanIdx);
         const isTop = fanIdx === 0;
 
         if (isTop) {

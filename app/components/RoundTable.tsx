@@ -23,7 +23,6 @@ interface RoundTableProps {
   onCardSelect: (card: CardType) => void;
   onPlay: () => void;
   onDraw: () => void;
-  onDeclareOnCards: () => void;
   selectedCards: CardType[];
   validPlays: CardType[][];
   isMyTurn: boolean;
@@ -32,10 +31,7 @@ interface RoundTableProps {
   deckCountOverride?: number | null;
   connectionState: string;
   isAIThinking: boolean;
-  // On-cards window (managed by parent)
-  showOnCardsWindow: boolean;
-  onCardsCountdown: number;
-  onCancelOnCards: () => void;
+  // On-cards state (managed by parent)
   onCardsActive: boolean;
   // Auto-draw countdown (managed by parent)
   autoDrawCountdown: number | null;
@@ -427,7 +423,6 @@ export function RoundTable({
   onCardSelect,
   onPlay,
   onDraw,
-  onDeclareOnCards,
   selectedCards,
   validPlays,
   isMyTurn,
@@ -435,9 +430,6 @@ export function RoundTable({
   dealtCardCounts,
   deckCountOverride,
   isAIThinking,
-  showOnCardsWindow,
-  onCardsCountdown,
-  onCancelOnCards,
   onCardsActive,
   autoDrawCountdown,
   onCancelAutoDraw,
@@ -782,31 +774,6 @@ export function RoundTable({
         )}
       </View>
 
-      {/* ── On-cards declaration window ─────────────────────────────────────── */}
-      {showOnCardsWindow && myPlayer && (
-        <View style={tableStyles.onCardsOverlay}>
-          <View style={tableStyles.onCardsCard}>
-            <Text style={tableStyles.onCardsHandCount}>
-              {myPlayer.hand.length} card{myPlayer.hand.length !== 1 ? 's' : ''} left
-            </Text>
-            {!onCardsActive ? (
-              <TouchableOpacity style={tableStyles.onCardsBigBtn} onPress={onDeclareOnCards}>
-                <Text style={tableStyles.onCardsBigBtnText}>I'm on cards!</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={tableStyles.declaredBadge}>
-                <Text style={tableStyles.declaredBadgeText}>Already declared!</Text>
-              </View>
-            )}
-            <View style={tableStyles.countdownTrack}>
-              <View style={[tableStyles.countdownFill, { flex: onCardsCountdown / 3 }]} />
-              <View style={{ flex: (3 - onCardsCountdown) / 3 }} />
-            </View>
-            <Text style={tableStyles.countdownLabel}>{onCardsCountdown}s</Text>
-          </View>
-        </View>
-      )}
-
       {/* ── Auto-draw countdown overlay ─────────────────────────────────────── */}
       {autoDrawCountdown !== null && gameState && (
         <View style={tableStyles.autoDrawOverlay}>
@@ -948,75 +915,6 @@ const tableStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     backgroundColor: 'transparent',
-  },
-
-  // On-cards overlay
-  onCardsOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 60,
-  },
-  onCardsCard: {
-    backgroundColor: THEME.cardBackground,
-    borderRadius: 18,
-    paddingHorizontal: 28,
-    paddingVertical: 24,
-    alignItems: 'center',
-    gap: 14,
-    minWidth: 260,
-    borderWidth: 1,
-    borderColor: THEME.gold,
-  },
-  onCardsHandCount: {
-    color: THEME.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  onCardsBigBtn: {
-    backgroundColor: THEME.gold,
-    borderRadius: 14,
-    paddingHorizontal: 28,
-    paddingVertical: 16,
-    alignItems: 'center',
-    minWidth: 180,
-  },
-  onCardsBigBtnText: {
-    color: THEME.appBackground,
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  declaredBadge: {
-    backgroundColor: 'rgba(93,202,165,0.15)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: THEME.success,
-  },
-  declaredBadgeText: {
-    color: THEME.success,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  countdownTrack: {
-    flexDirection: 'row',
-    width: '100%',
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: THEME.surfaceBackground,
-    overflow: 'hidden',
-  },
-  countdownFill: {
-    backgroundColor: THEME.gold,
-    borderRadius: 3,
-  },
-  countdownLabel: {
-    color: THEME.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
   },
 
   // Auto-draw overlay

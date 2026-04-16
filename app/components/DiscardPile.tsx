@@ -5,11 +5,9 @@ import type { Card as CardType, Suit } from '../../engine/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const VISIBLE_STACK = 5;
-const CARD_W = 52;
-const CARD_H = 76;
-const CONTAINER_W = 60;
-const CONTAINER_H = 90;
+const FAN_SIZE = 4;
+const CARD_W = 62;
+const CARD_H = 90;
 
 const SUIT_SYMBOLS: Record<Suit, string> = {
   hearts: '♥',
@@ -20,40 +18,26 @@ const SUIT_SYMBOLS: Record<Suit, string> = {
 
 const RED_SUITS = new Set<Suit>(['hearts', 'diamonds']);
 
-// ─── Seeded randomness ────────────────────────────────────────────────────────
-// Uses Math.sin so the same card at the same pile position always gets the
-// same offset — no re-randomisation on re-renders.
-
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed + 1) * 43758.5453123;
-  return x - Math.floor(x); // [0, 1)
-}
-
-const RANK_ORDER = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const SUIT_ORDER: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
+// ─── Fan offset ───────────────────────────────────────────────────────────────
+// index 0 = top card (flat, centred)
+// index 1-3 = progressively more fanned out so rank/suit are clearly visible
 
 interface CardOffset {
-  rot: number;
-  dx: number;
-  dy: number;
+  rotation: number;
+  offsetX: number;
+  offsetY: number;
 }
 
-function getCardOffset(card: CardType, indexInPile: number, isTop: boolean): CardOffset {
-  const rankCode = RANK_ORDER.indexOf(card.rank) + 1;
-  const suitCode = SUIT_ORDER.indexOf(card.suit) + 1;
-  const base = rankCode * 1000 + suitCode * 100 + indexInPile;
-
-  const r1 = seededRandom(base);
-  const r2 = seededRandom(base + 50);
-  const r3 = seededRandom(base + 100);
-
-  // Top card: ±5° max, no x/y offset — always readable
-  // Under cards: up to ±15°, small random offsets
-  const rotRange = isTop ? 10 : 30;
+function getCardOffset(card: CardType, index: number): CardOffset {
+  if (index === 0) {
+    return { rotation: 0, offsetX: 0, offsetY: 0 };
+  }
+  const seed = card.rank.charCodeAt(0) + card.suit.charCodeAt(0);
+  const direction = seed % 2 === 0 ? 1 : -1; // alternates left/right based on card identity
   return {
-    rot: r1 * rotRange - rotRange / 2, // top: [-5, +5], others: [-15, +15]
-    dx: isTop ? 0 : r2 * 14 - 7,      // top: 0, others: [-7, +7]
-    dy: isTop ? 0 : r3 * 10 - 5,      // top: 0, others: [-5, +5]
+    rotation: direction * (18 * index),  // 18°, 36°, 54°
+    offsetX: direction * (22 * index),   // spreads left and right
+    offsetY: index * 8,                  // slight downward cascade
   };
 }
 
@@ -67,7 +51,7 @@ interface DiscardPileProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
-  // ── Active suit fade ─────────────────────────────────────────────────────────
+  // ── Active suit fade ──────────────────────────────────────────────────────────
   const suitOpacity = useRef(new Animated.Value(activeSuit ? 1 : 0)).current;
 
   useEffect(() => {
@@ -79,9 +63,8 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
   }, [activeSuit]);
 
   // ── Landing settle animation for the top card ─────────────────────────────────
-  // Scale: 1.1 → 0.95 → 1.0  |  Rotation: 0° → final resting rotation
+  // Scale: 1.1 → 0.95 → 1.0
   const landingScale = useRef(new Animated.Value(1)).current;
-  const landingRot = useRef(new Animated.Value(0)).current;
   const prevTopRef = useRef<CardType | null>(discard[discard.length - 1] ?? null);
 
   useEffect(() => {
@@ -91,30 +74,11 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
       top !== null &&
       (prev === null || top.rank !== prev.rank || top.suit !== prev.suit);
 
-    if (isNewCard && top) {
-      const { rot } = getCardOffset(top, discard.length - 1, true);
-
+    if (isNewCard) {
       landingScale.setValue(1.1);
-      landingRot.setValue(0);
-
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(landingScale, {
-            toValue: 0.95,
-            duration: 140,
-            useNativeDriver: false,
-          }),
-          Animated.timing(landingScale, {
-            toValue: 1.0,
-            duration: 110,
-            useNativeDriver: false,
-          }),
-        ]),
-        Animated.timing(landingRot, {
-          toValue: rot,
-          duration: 250,
-          useNativeDriver: false,
-        }),
+      Animated.sequence([
+        Animated.timing(landingScale, { toValue: 0.95, duration: 140, useNativeDriver: false }),
+        Animated.timing(landingScale, { toValue: 1.0, duration: 110, useNativeDriver: false }),
       ]).start();
     }
 
@@ -122,40 +86,32 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
   }, [discard.length]);
 
   // ── Render ────────────────────────────────────────────────────────────────────
-
-  const topAbsIdx = discard.length - 1;
-  // Show at most VISIBLE_STACK cards, rendered bottom-first so topmost is on top
-  const visibleCards = discard.slice(-VISIBLE_STACK);
-  const topVisIdx = visibleCards.length - 1;
-
-  // Interpolate landingRot (number in degrees) → string for the transform prop
-  const landingRotDeg = landingRot.interpolate({
-    inputRange: [-90, 0, 90],
-    outputRange: ['-90deg', '0deg', '90deg'],
-  });
+  // Take the most recent FAN_SIZE cards. Index 0 = top card (most recent).
+  const recentCards = discard.slice(-FAN_SIZE).reverse(); // [top, 2nd, 3rd, bottom]
 
   return (
     <View style={styles.container}>
       {discard.length === 0 && <View style={styles.emptyPile} />}
 
-      {visibleCards.map((card, visIdx) => {
-        const absIdx = topAbsIdx - (topVisIdx - visIdx);
-        const isTop = visIdx === topVisIdx;
-        const { rot, dx, dy } = getCardOffset(card, absIdx, isTop);
+      {/* Render bottom-to-top so top card is drawn last (highest z) */}
+      {[...recentCards].reverse().map((card, reversedIdx) => {
+        // reversedIdx counts from the bottom; convert back to fan index
+        const fanIdx = recentCards.length - 1 - reversedIdx;
+        const { rotation, offsetX, offsetY } = getCardOffset(card, fanIdx);
+        const isTop = fanIdx === 0;
 
         if (isTop) {
-          // Top card gets the landing animation
           return (
             <Animated.View
-              key={`${card.rank}-${card.suit}-${absIdx}`}
+              key={`${card.rank}-${card.suit}-top`}
               style={[
                 styles.cardSlot,
                 {
-                  zIndex: visIdx + 1,
+                  zIndex: FAN_SIZE,
                   transform: [
-                    { translateX: dx },
-                    { translateY: dy },
-                    { rotate: landingRotDeg },
+                    { translateX: offsetX },
+                    { translateY: offsetY },
+                    { rotate: `${rotation}deg` },
                     { scale: landingScale },
                   ],
                 },
@@ -166,18 +122,17 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
           );
         }
 
-        // Non-top cards use static seeded offsets
         return (
           <View
-            key={`${card.rank}-${card.suit}-${absIdx}`}
+            key={`${card.rank}-${card.suit}-${fanIdx}`}
             style={[
               styles.cardSlot,
               {
-                zIndex: visIdx + 1,
+                zIndex: FAN_SIZE - fanIdx,
                 transform: [
-                  { translateX: dx },
-                  { translateY: dy },
-                  { rotate: `${rot}deg` },
+                  { translateX: offsetX },
+                  { translateY: offsetY },
+                  { rotate: `${rotation}deg` },
                 ],
               },
             ]}
@@ -187,7 +142,7 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
         );
       })}
 
-      {/* Active suit pill — overlaid above the pile, fades in/out */}
+      {/* Active suit pill — floats above the fan, centred */}
       <Animated.View
         style={[styles.suitPillWrapper, { opacity: suitOpacity }]}
         pointerEvents="none"
@@ -210,16 +165,15 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // Fixed container; overflow visible so rotated cards and suit pill can extend.
   container: {
-    width: CONTAINER_W,
-    height: CONTAINER_H,
+    width: 180,
+    height: 160,
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardSlot: {
     position: 'absolute',
-    top: 0,
-    left: 0,
   },
   emptyPile: {
     width: CARD_W,
@@ -229,7 +183,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.25)',
     borderStyle: 'dashed',
   },
-  // Suit pill floats above the top card, centred over the pile
   suitPillWrapper: {
     position: 'absolute',
     top: -38,

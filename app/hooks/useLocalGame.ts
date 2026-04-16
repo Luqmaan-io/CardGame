@@ -28,6 +28,8 @@ export function useLocalGame() {
   const aiRunningRef = useRef(false);
   // Store human player's display name for results screen
   const humanNameRef = useRef<string>('Player');
+  // Last AI play in submission order (for history banner)
+  const lastAIPlayCardsRef = useRef<Card[]>([]);
   // Stable ref to runGameLoop so useCallback closures don't go stale
   const runGameLoopRef = useRef<(state: GameState) => void>(() => {});
 
@@ -161,6 +163,7 @@ export function useLocalGame() {
         actedState = engineDrawCard(drawCount, currentState);
       } else {
         const cards = move as Card[];
+        lastAIPlayCardsRef.current = cards; // preserve submission order for history banner
         const lastCard = cards[cards.length - 1]!;
         let declaredSuit: Suit | null = null;
         if (lastCard.rank === 'A') {
@@ -341,5 +344,6 @@ export function useLocalGame() {
     humanDeclareOnCards,
     humanApplyTimeout,
     adjustTurnStartedAt,
+    lastAIPlayCardsRef,
   };
 }

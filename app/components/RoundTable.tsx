@@ -118,7 +118,7 @@ function DrawPileView({
           ]}
         />
       )}
-      <CardBack width={44} height={64} />
+      <CardBack width={52} height={76} />
       <View style={drawStyles.countBadge}>
         <Text style={drawStyles.countText}>{count}</Text>
       </View>
@@ -141,8 +141,8 @@ const drawStyles = StyleSheet.create({
   },
   stackBehind: {
     position: 'absolute',
-    width: 44,
-    height: 64,
+    width: 52,
+    height: 76,
     borderRadius: 4,
     backgroundColor: THEME.cardBack,
     borderWidth: 1,

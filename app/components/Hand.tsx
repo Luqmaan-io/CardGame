@@ -13,8 +13,8 @@ import type { Card as CardType } from '../../engine/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CARD_W = 70;
-const CARD_H = 100;
+const CARD_W = 88;
+const CARD_H = 124;
 const MAX_ROTATION = 20;
 const ARC_HEIGHT = 16;
 const SELECTED_LIFT = 20;

@@ -91,6 +91,7 @@ export default function GameScreen() {
     humanDeclareOnCards,
     humanApplyTimeout,
     adjustTurnStartedAt,
+    lastAIPlayCardsRef,
   } = useLocalGame();
 
   // Pick active game data based on mode
@@ -131,6 +132,8 @@ export default function GameScreen() {
 
   // ── Last move (most recent completed move) ────────────────────────────────
   const [lastMove, setLastMove] = useState<HistoryEntry | null>(null);
+  // Human play cards captured in submission order before clearSelection()
+  const lastHumanPlayCardsRef = useRef<Card[]>([]);
 
   // ── Auth context (for stats recording) ────────────────────────────────────
   const { profile, isGuest } = useAuth();
@@ -594,12 +597,27 @@ export default function GameScreen() {
           return prev && prev.hand.length > p.hand.length;
         });
         if (justPlayedBy) {
-          const prevPlayer = prevGameStateRef.current?.players.find((pp) => pp.id === justPlayedBy.id);
-          const cardsPlayed = prevPlayer
-            ? prevPlayer.hand.filter(
-                (c) => !justPlayedBy.hand.some((nc) => nc.rank === c.rank && nc.suit === c.suit)
-              )
-            : [discardTop];
+          // Use submission-order refs so the banner shows cards in play order.
+          // Human: captured in lastHumanPlayCardsRef before clearSelection().
+          // AI (local): captured in lastAIPlayCardsRef by useLocalGame.
+          // Online opponents: fall back to hand diff (no ref available).
+          let cardsPlayed: Card[];
+          if (justPlayedBy.id === myPlayerId) {
+            cardsPlayed = lastHumanPlayCardsRef.current.length > 0
+              ? lastHumanPlayCardsRef.current
+              : [discardTop];
+          } else if (isLocalMode) {
+            cardsPlayed = lastAIPlayCardsRef.current.length > 0
+              ? lastAIPlayCardsRef.current
+              : [discardTop];
+          } else {
+            const prevPlayer = prevGameStateRef.current?.players.find((pp) => pp.id === justPlayedBy.id);
+            cardsPlayed = prevPlayer
+              ? prevPlayer.hand.filter(
+                  (c) => !justPlayedBy.hand.some((nc) => nc.rank === c.rank && nc.suit === c.suit)
+                )
+              : [discardTop];
+          }
           const entry: HistoryEntry = {
             playerId: justPlayedBy.id,
             playerName: isLocalMode
@@ -894,6 +912,7 @@ export default function GameScreen() {
     const to = discardPos ? centreOf(discardPos) : fallback.discard;
 
     const cards = selectedCards.slice(); // capture before clearSelection
+    lastHumanPlayCardsRef.current = cards; // preserve submission order for history banner
     cards.forEach((card, i) => {
       overlayRef.current?.addCards([
         {
@@ -937,6 +956,7 @@ export default function GameScreen() {
     const to = discardPos ? centreOf(discardPos) : fallback.discard;
 
     const cards = selectedCards.slice(); // capture before clearSelection
+    lastHumanPlayCardsRef.current = cards; // preserve submission order for history banner
     cards.forEach((card, i) => {
       overlayRef.current?.addCards([
         {

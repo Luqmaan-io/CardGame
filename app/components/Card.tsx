@@ -27,7 +27,7 @@ const RED_SUITS = new Set(['hearts', 'diamonds']);
 // ─── CardBack ────────────────────────────────────────────────────────────────
 // Navy background with gold diamond pattern. Used for all face-down cards.
 
-export function CardBack({ width = 70, height = 100 }: { width?: number; height?: number }) {
+export function CardBack({ width = 88, height = 124 }: { width?: number; height?: number }) {
   return (
     <View
       style={[
@@ -70,8 +70,8 @@ export function Card({
   isValid = false,
   faceDown = false,
   isDisabled = false,
-  width = 70,
-  height = 100,
+  width = 88,
+  height = 124,
 }: CardProps) {
   const isRed = RED_SUITS.has(card.suit);
   const symbol = SUIT_SYMBOLS[card.suit] ?? '';
@@ -134,8 +134,8 @@ export function Card({
 
 const styles = StyleSheet.create({
   card: {
-    width: 70,
-    height: 100,
+    width: 88,
+    height: 124,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -205,6 +205,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textAlignVertical: 'center',
     // web fallback
-    lineHeight: 100,
+    lineHeight: 124,
   },
 });

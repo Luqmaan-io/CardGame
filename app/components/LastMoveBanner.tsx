@@ -15,8 +15,8 @@ function MiniCard({ card }: { card: Card }) {
   const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
   return (
     <View style={{
-      width: 28,
-      height: 40,
+      width: 32,
+      height: 46,
       backgroundColor: THEME.cardFace,
       borderRadius: 4,
       borderWidth: 0.5,

@@ -315,7 +315,7 @@ export function Hand({
       }
     },
 
-    onRelease(_gestureState) {
+    onRelease(gestureState) {
       if (isDealModeRef.current) return;
       const ds = dragStateRef.current;
       dragStateRef.current = null;
@@ -335,12 +335,21 @@ export function Hand({
         return;
       }
 
+      // Recalculate drop index from moveX at the moment of release
+      // (more reliable than hoverIdxRef which may lag on quick lifts)
       const fromIdx = ds.cardIndex;
-      const toIdx = hoverIdxRef.current ?? fromIdx;
+      const n = localCardsRef.current.length;
+      const { spacing, startX } = computeLayout(n, screenWidthRef.current);
+      const releaseLocalX = gestureState.moveX - containerPageXRef.current;
+      const calculatedIdx = localXToHoverIdx(releaseLocalX, n, startX, spacing);
+      const toIdx = calculatedIdx;
       const next = [...localCardsRef.current];
       const [removed] = next.splice(fromIdx, 1);
       if (removed !== undefined) next.splice(toIdx, 0, removed);
 
+      // Reset drag animation values immediately before re-rendering
+      dragCardX.setValue(0);
+      dragCardY.setValue(0);
       doResetShifts();
       Animated.spring(dragScale, { toValue: 1, useNativeDriver: false, speed: 30 }).start();
       hoverIdxRef.current = null;
@@ -350,8 +359,11 @@ export function Hand({
 
     onTerminate() {
       dragStateRef.current = null;
-      shiftAnims.current.forEach((a) => a.setValue(0));
+      // Reset all animation values instantly so the card never stays hovering
+      dragCardX.setValue(0);
+      dragCardY.setValue(0);
       dragScale.setValue(1);
+      shiftAnims.current.forEach((a) => a.setValue(0));
       hoverIdxRef.current = null;
       setDraggingIdx(null);
     },

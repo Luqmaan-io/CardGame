@@ -35,9 +35,9 @@ function calcCardOffset(card: CardType, index: number): CardOffset {
   const seed = card.rank.charCodeAt(0) + card.suit.charCodeAt(0);
   const direction = seed % 2 === 0 ? 1 : -1;
   return {
-    rotation: direction * (18 * index),
-    offsetX: direction * (22 * index),
-    offsetY: index * 8,
+    rotation: direction * (8 * index),   // gentle ±8°, ±16°, ±24°
+    offsetX: direction * (10 * index),   // slight spread left/right
+    offsetY: index * 4,                  // slight cascade down
   };
 }
 

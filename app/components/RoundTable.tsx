@@ -606,13 +606,13 @@ export function RoundTable({
           </View>
         )}
 
-        {/* Draw pile — slightly left of centre */}
+        {/* Draw pile — right of centre, equidistant from table centre */}
         <View
           ref={drawPileRef}
           style={{
             position: 'absolute',
-            left: tableCentreX - 58,
-            top: tableCentreY - 38,
+            left: tableCentreX + 40 - 26,
+            top: tableCentreY - 45,
             alignItems: 'center',
             zIndex: 5,
           }}
@@ -623,13 +623,13 @@ export function RoundTable({
           />
         </View>
 
-        {/* Discard pile — slightly right of centre */}
+        {/* Discard pile — left of centre, equidistant from table centre */}
         <View
           ref={discardPileRef}
           style={{
             position: 'absolute',
-            left: tableCentreX + 10,
-            top: tableCentreY - 38,
+            left: tableCentreX - 40 - 26,
+            top: tableCentreY - 45,
             zIndex: 5,
           }}
         >

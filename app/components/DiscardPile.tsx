@@ -18,27 +18,14 @@ const SUIT_SYMBOLS: Record<Suit, string> = {
 
 const RED_SUITS = new Set<Suit>(['hearts', 'diamonds']);
 
-// ─── Fan offset ───────────────────────────────────────────────────────────────
-// index 0 = top card (flat, centred)
-// index 1-3 = progressively more fanned out so rank/suit are clearly visible
+// ─── Stable offset cache ──────────────────────────────────────────────────────
+// Keyed by card identity only (not position) so offsets survive re-ordering.
+// Top card is always flat; non-top cards get a fixed deterministic offset.
 
 interface CardOffset {
   rotation: number;
   offsetX: number;
   offsetY: number;
-}
-
-function calcCardOffset(card: CardType, index: number): CardOffset {
-  if (index === 0) {
-    return { rotation: 0, offsetX: 0, offsetY: 0 };
-  }
-  const seed = card.rank.charCodeAt(0) + card.suit.charCodeAt(0);
-  const direction = seed % 2 === 0 ? 1 : -1;
-  return {
-    rotation: direction * (8 * index),   // gentle ±8°, ±16°, ±24°
-    offsetX: direction * (10 * index),   // slight spread left/right
-    offsetY: index * 4,                  // slight cascade down
-  };
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -51,32 +38,43 @@ interface DiscardPileProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
-  // ── Stable offset cache — prevents existing card rotations from jumping when a new card lands
-  const offsetsRef = useRef<Record<string, CardOffset>>({});
-  const recentCards = useMemo(
-    () => discard.slice(-FAN_SIZE).reverse(), // [top, 2nd, 3rd, bottom]
-    [discard]
-  );
-
-  function getCardKey(card: CardType, index: number) {
-    return `${card.rank}${card.suit}${index}`;
+  // Key by card identity — never changes regardless of fan position
+  function getCardKey(card: CardType) {
+    return `${card.rank}_${card.suit}`;
   }
 
-  function getStableOffset(card: CardType, index: number): CardOffset {
-    const key = getCardKey(card, index);
+  // Cache keyed by card identity: once set it never changes unless the card
+  // becomes the top card (in which case we override to flat).
+  const offsetsRef = useRef<Record<string, CardOffset>>({});
+
+  function getStableOffset(card: CardType, isTop: boolean): CardOffset {
+    const key = getCardKey(card);
+    if (isTop) {
+      offsetsRef.current[key] = { rotation: 0, offsetX: 0, offsetY: 0 };
+      return offsetsRef.current[key]!;
+    }
     if (!offsetsRef.current[key]) {
-      offsetsRef.current[key] = calcCardOffset(card, index);
+      const seed = card.rank.charCodeAt(0) + card.suit.charCodeAt(0);
+      const direction = seed % 2 === 0 ? 1 : -1;
+      offsetsRef.current[key] = {
+        rotation: direction * 12,   // fixed ±12° for all non-top cards
+        offsetX: direction * 14,
+        offsetY: 6,
+      };
     }
     return offsetsRef.current[key]!;
   }
 
-  // Prune keys that no longer correspond to the current fan
+  const recentCards = useMemo(
+    () => discard.slice(-FAN_SIZE).reverse(), // index 0 = top card
+    [discard]
+  );
+
+  // Prune stale keys when pile changes
   useEffect(() => {
-    const validKeys = new Set(recentCards.map((card, i) => getCardKey(card, i)));
+    const validKeys = new Set(recentCards.map(getCardKey));
     for (const key of Object.keys(offsetsRef.current)) {
-      if (!validKeys.has(key)) {
-        delete offsetsRef.current[key];
-      }
+      if (!validKeys.has(key)) delete offsetsRef.current[key];
     }
   }, [recentCards]);
 
@@ -122,15 +120,14 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
 
       {/* Render bottom-to-top so top card is drawn last (highest z) */}
       {[...recentCards].reverse().map((card, reversedIdx) => {
-        // reversedIdx counts from the bottom; convert back to fan index
         const fanIdx = recentCards.length - 1 - reversedIdx;
-        const { rotation, offsetX, offsetY } = getStableOffset(card, fanIdx);
         const isTop = fanIdx === 0;
+        const { rotation, offsetX, offsetY } = getStableOffset(card, isTop);
 
         if (isTop) {
           return (
             <Animated.View
-              key={`${card.rank}-${card.suit}-top`}
+              key={getCardKey(card)}
               style={[
                 styles.cardSlot,
                 {
@@ -151,7 +148,7 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
 
         return (
           <View
-            key={`${card.rank}-${card.suit}-${fanIdx}`}
+            key={getCardKey(card)}
             style={[
               styles.cardSlot,
               {

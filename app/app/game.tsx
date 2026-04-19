@@ -9,6 +9,7 @@ import {
   Alert,
   Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSocket } from '../hooks/useSocket';
 import { useLocalGame } from '../hooks/useLocalGame';
@@ -54,6 +55,7 @@ export default function GameScreen() {
   const params = useLocalSearchParams<{ mode?: string; playerName?: string; aiCount?: string; avatarId?: string }>();
   const isLocalMode = params.mode === 'local';
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   // ── Audio / haptics ───────────────────────────────────────────────────────
   const { playSound, isMuted, toggleMute } = useSounds();
@@ -1097,7 +1099,7 @@ export default function GameScreen() {
     : (currentPlayer?.id?.slice(0, 8) ?? '');
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { paddingBottom: insets.bottom }]}>
       <Toast
         messages={toasts}
         onExpire={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}

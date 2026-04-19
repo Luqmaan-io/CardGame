@@ -470,12 +470,24 @@ export function RoundTable({
   const opponents = players.filter((p) => p.id !== myPlayerId);
 
   // ── Table geometry ──────────────────────────────────────────────────────────
-  // Table fills and overflows the screen — clipped at edges (intentional)
-  const tableRadius = Math.max(screenWidth, screenHeight) * 0.52;
+  const isSmallScreen = screenWidth < 768;
+
+  // On mobile: clearly circular — navy background visible on all sides
+  // On web/tablet: larger table that fills more of the viewport
+  const tableRadius = isSmallScreen
+    ? screenWidth * 0.42
+    : Math.min(screenWidth, screenHeight) * 0.52;
+
   const tableCentreX = screenWidth / 2;
-  const tableCentreY = screenHeight / 2;
-  // Slot placement radius: smaller, keeps opponent slots visible on screen
-  const slotRadius = Math.min(screenWidth * 0.44, screenHeight * 0.38, 180);
+  // Higher on mobile — leaves room for hand/action zone below
+  const tableCentreY = isSmallScreen
+    ? screenHeight * 0.38
+    : screenHeight / 2;
+
+  // Slot placement radius — keeps opponent slots on the visible table rim
+  const slotRadius = isSmallScreen
+    ? tableRadius * 0.88
+    : Math.min(screenWidth * 0.44, screenHeight * 0.38, 180);
 
   // ── Player angles ────────────────────────────────────────────────────────────
   const playerAngles = getPlayerAngles(players.length, myIndex);
@@ -606,35 +618,39 @@ export function RoundTable({
           </View>
         )}
 
-        {/* Draw pile — right of centre, equidistant from table centre */}
-        <View
-          ref={drawPileRef}
-          style={{
-            position: 'absolute',
-            left: tableCentreX + 40 - 26,
-            top: tableCentreY - 45,
-            alignItems: 'center',
-            zIndex: 5,
-          }}
-        >
-          <DrawPileView
-            count={displayDeckCount}
-            onPress={showPreAction && !selectedCards.length ? onDraw : undefined}
-          />
-        </View>
+        {/* ── Centre piles — draw (right) and discard (left), symmetrically centred */}
+        {(() => {
+          const CARD_WIDTH = 52;
+          const PILE_GAP = 20;
+          const totalPilesWidth = CARD_WIDTH * 2 + PILE_GAP;
+          const discardX = tableCentreX - totalPilesWidth / 2;
+          const drawX = tableCentreX - totalPilesWidth / 2 + CARD_WIDTH + PILE_GAP;
+          const pilesY = isSmallScreen
+            ? tableCentreY - tableRadius * 0.15
+            : tableCentreY - 45;
+          return (
+            <>
+              {/* Discard pile — left */}
+              <View
+                ref={discardPileRef}
+                style={{ position: 'absolute', left: discardX, top: pilesY, zIndex: 5 }}
+              >
+                <DiscardPile discard={discard} activeSuit={activeSuit} />
+              </View>
 
-        {/* Discard pile — left of centre, equidistant from table centre */}
-        <View
-          ref={discardPileRef}
-          style={{
-            position: 'absolute',
-            left: tableCentreX - 40 - 26,
-            top: tableCentreY - 45,
-            zIndex: 5,
-          }}
-        >
-          <DiscardPile discard={discard} activeSuit={activeSuit} />
-        </View>
+              {/* Draw pile — right */}
+              <View
+                ref={drawPileRef}
+                style={{ position: 'absolute', left: drawX, top: pilesY, alignItems: 'center', zIndex: 5 }}
+              >
+                <DrawPileView
+                  count={displayDeckCount}
+                  onPress={showPreAction && !selectedCards.length ? onDraw : undefined}
+                />
+              </View>
+            </>
+          );
+        })()}
 
         {/* Active suit indicator — between the two piles */}
         {activeSuit && activeSuitSymbol && (
@@ -695,13 +711,15 @@ export function RoundTable({
           );
         })}
 
-        {/* Human avatar — anchored just above the hand fan area */}
+        {/* Human avatar — anchored at bottom rim of table */}
         {myPlayer && (
           <View
             style={{
               position: 'absolute',
               left: tableCentreX - 36,
-              top: Math.min(tableCentreY + tableRadius - 22, screenHeight - 315),
+              top: isSmallScreen
+                ? tableCentreY + tableRadius * 0.85 - 20
+                : Math.min(tableCentreY + tableRadius - 22, screenHeight - 315),
               width: 72,
               alignItems: 'center',
               zIndex: 6,
@@ -727,8 +745,8 @@ export function RoundTable({
         style={[
           tableStyles.handArea,
           {
-            height: HAND_AREA_HEIGHT,
-            bottom: ACTION_ZONE_HEIGHT,
+            height: isSmallScreen ? 140 : HAND_AREA_HEIGHT,
+            bottom: isSmallScreen ? 100 : ACTION_ZONE_HEIGHT,
           },
         ]}
       >

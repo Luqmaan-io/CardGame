@@ -21,6 +21,7 @@ export function useLocalGame() {
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const myPlayerId = 'player-human';
+  const turnDurationRef = useRef<number>(30);
 
   // Ref to hold the latest state so the async AI loop always reads current state
   const stateRef = useRef<GameState | null>(null);
@@ -48,8 +49,9 @@ export function useLocalGame() {
     }
   }, [gameState?.currentPlayerIndex, gameState?.phase]);
 
-  function startLocalGame(playerName: string, aiCount: number, humanAvatarId?: string) {
+  function startLocalGame(playerName: string, aiCount: number, humanAvatarId?: string, turnDuration?: number) {
     humanNameRef.current = playerName;
+    turnDurationRef.current = turnDuration ?? 30;
     const clampedAI = Math.min(3, Math.max(1, aiCount));
     const playerCount = 1 + clampedAI;
 
@@ -65,11 +67,11 @@ export function useLocalGame() {
     const aiAvatarPool = shuffledAvatars.filter((id) => id !== humanUsedAvatar);
 
     const players: Player[] = [
-      { id: 'player-human', hand: [], isHuman: true, colourHex: humanColour.hex, avatarId: humanUsedAvatar } as Player & { avatarId: string },
+      { id: 'player-human', hand: [], isHuman: true, colourHex: humanColour.hex, avatarId: humanUsedAvatar, sceneId: 'midnight_rain' } as Player & { avatarId: string },
       ...Array.from({ length: clampedAI }, (_, i) => {
         const colour = assignRandomColour(takenColourIds);
         takenColourIds.push(colour.id);
-        return { id: `ai-${i + 1}`, hand: [], isHuman: false, colourHex: colour.hex, avatarId: aiAvatarPool[i % aiAvatarPool.length]! } as Player & { avatarId: string };
+        return { id: `ai-${i + 1}`, hand: [], isHuman: false, colourHex: colour.hex, avatarId: aiAvatarPool[i % aiAvatarPool.length]!, sceneId: 'midnight_rain' } as Player & { avatarId: string };
       }),
     ] as Player[];
 
@@ -337,6 +339,7 @@ export function useLocalGame() {
     isAIThinking,
     playerNames,
     turnStartedAt,
+    turnDurationRef,
     startLocalGame,
     humanPlay,
     humanDraw,

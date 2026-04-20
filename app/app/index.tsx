@@ -63,6 +63,14 @@ function PulsingDots() {
   return <Text style={styles.pulsingDots}>{dots}</Text>;
 }
 
+const TIMER_OPTIONS = [
+  { label: '15s',  value: 15,  description: 'Blitz'    },
+  { label: '30s',  value: 30,  description: 'Standard' },
+  { label: '60s',  value: 60,  description: 'Casual'   },
+  { label: '2m',   value: 120, description: 'Relaxed'  },
+  { label: 'None', value: 0,   description: 'No limit' },
+];
+
 type Mode = 'none' | 'online' | 'ai';
 
 export default function HomeScreen() {
@@ -89,6 +97,9 @@ export default function HomeScreen() {
   // AI flow state — pre-filled from profile
   const [aiName, setAiName] = useState('');
   const [aiCount, setAiCount] = useState<1 | 2 | 3>(1);
+
+  // Turn timer duration — shared across online + AI modes
+  const [turnDuration, setTurnDuration] = useState(30);
 
   // Pre-fill name fields from profile whenever profile loads
   useEffect(() => {
@@ -120,7 +131,7 @@ export default function HomeScreen() {
     setPlayerName(createName.trim());
     setLastAction('create');
     setError(null);
-    createRoom(maxPlayers, profile?.id, profile?.colourHex, profile?.avatarId);
+    createRoom(maxPlayers, profile?.id, profile?.colourHex, profile?.avatarId, turnDuration);
   }
 
   function handleJoin() {
@@ -152,6 +163,7 @@ export default function HomeScreen() {
         mode: 'local',
         playerName: aiName.trim(),
         aiCount: String(aiCount),
+        turnDuration: String(turnDuration),
         userId: profile?.id ?? '',
         colourHex: profile?.colourHex ?? '#378ADD',
         avatarId: profile?.avatarId ?? 'avatar_01',
@@ -371,6 +383,21 @@ export default function HomeScreen() {
               ))}
             </View>
 
+            <Text style={styles.inputLabel}>Turn timer</Text>
+            <View style={styles.playerCountRow}>
+              {TIMER_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.countBtn, turnDuration === opt.value && styles.countBtnActive]}
+                  onPress={() => setTurnDuration(opt.value)}
+                >
+                  <Text style={[styles.countBtnText, { fontSize: 13 }, turnDuration === opt.value && styles.countBtnTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <TouchableOpacity
               style={[styles.primaryBtn, !canStartAI && styles.btnDisabled]}
               onPress={handleStartAI}
@@ -417,6 +444,21 @@ export default function HomeScreen() {
                       ]}
                     >
                       {n}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>Turn timer</Text>
+              <View style={styles.playerCountRow}>
+                {TIMER_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.countBtn, turnDuration === opt.value && styles.countBtnActive]}
+                    onPress={() => setTurnDuration(opt.value)}
+                  >
+                    <Text style={[styles.countBtnText, { fontSize: 13 }, turnDuration === opt.value && styles.countBtnTextActive]}>
+                      {opt.label}
                     </Text>
                   </TouchableOpacity>
                 ))}

@@ -14,7 +14,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSocket } from '../hooks/useSocket';
 import { useLocalGame } from '../hooks/useLocalGame';
 import { useGameStore } from '../store/gameStore';
-import { RoundTable } from '../components/RoundTable';
+import { RoundTable, FloatingReaction } from '../components/RoundTable';
 import { SuitPicker } from '../components/SuitPicker';
 import { Toast, ToastMessage } from '../components/Toast';
 import { AnimationOverlay, AnimationOverlayHandle, animId } from '../components/AnimationOverlay';
@@ -31,6 +31,15 @@ import { isValidPlay } from '../../engine/validation';
 import type { Card, GameState, Suit } from '../../engine/types';
 import { useAuth } from '../context/AuthContext';
 import { recordGameStats } from '../lib/recordGameStats';
+
+// ─── Reaction emoji lookup ────────────────────────────────────────────────────
+
+const REACTION_MAP: Record<string, string> = {
+  fire: '🔥',
+  cold: '❄️',
+  eyes: '👀',
+  clap: '👏',
+};
 
 // ─── Power card ranks ─────────────────────────────────────────────────────────
 
@@ -52,7 +61,7 @@ function dealIntervalMs(playerCount: number): number {
 
 export default function GameScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string; playerName?: string; aiCount?: string; avatarId?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; playerName?: string; aiCount?: string; avatarId?: string; turnDuration?: string }>();
   const isLocalMode = params.mode === 'local';
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -78,6 +87,8 @@ export default function GameScreen() {
     deselectCard,
     clearSelection,
     pendingTimeoutNotification,
+    pendingReaction,
+    roomInfo,
   } = useGameStore();
 
   // ── Local AI hook (always mounted) ────────────────────────────────────────
@@ -87,6 +98,7 @@ export default function GameScreen() {
     isAIThinking,
     playerNames: localPlayerNames,
     turnStartedAt: localTurnStartedAt,
+    turnDurationRef: localTurnDurationRef,
     startLocalGame,
     humanPlay,
     humanDraw,
@@ -137,6 +149,9 @@ export default function GameScreen() {
   const [lastMove, setLastMove] = useState<HistoryEntry | null>(null);
   // Human play cards captured in submission order before clearSelection()
   const lastHumanPlayCardsRef = useRef<Card[]>([]);
+
+  // ── Floating reactions ────────────────────────────────────────────────────
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
 
   // ── Auth context (for stats recording) ────────────────────────────────────
   const { profile, isGuest } = useAuth();
@@ -398,7 +413,8 @@ export default function GameScreen() {
       localGameStartedRef.current = true;
       const name = params.playerName ?? 'Player';
       const count = parseInt(params.aiCount ?? '1', 10);
-      startLocalGame(name, count, params.avatarId);
+      const td = parseInt(params.turnDuration ?? '30', 10);
+      startLocalGame(name, count, params.avatarId, td);
     }
   }, []);
 
@@ -427,6 +443,19 @@ export default function GameScreen() {
     addToast(pendingTimeoutNotification);
     useGameStore.getState().setPendingTimeoutNotification(null);
   }, [pendingTimeoutNotification]);
+
+  // ── Reactions: show floating emoji from store pending reaction ────────────
+  useEffect(() => {
+    if (!pendingReaction) return;
+    const emoji = REACTION_MAP[pendingReaction.reactionId] ?? '🔥';
+    const id = Date.now().toString();
+    setFloatingReactions((prev) => [
+      ...prev,
+      { id, playerId: pendingReaction.playerId, reactionId: pendingReaction.reactionId, emoji, startTime: Date.now() },
+    ]);
+    useGameStore.getState().setPendingReaction(null);
+    setTimeout(() => setFloatingReactions((prev) => prev.filter((r) => r.id !== id)), 2500);
+  }, [pendingReaction]);
 
   // ── Online: suit picker on declare-suit ───────────────────────────────────
   useEffect(() => {
@@ -842,8 +871,10 @@ export default function GameScreen() {
     // Modal open — pause the turn timer; no timeout while rules are being read
     if (showHowToPlay) return;
 
+    const td = localTurnDurationRef.current;
+    if (td === 0) return; // no limit
     const elapsed = Date.now() - localTurnStartedAt;
-    const remaining = Math.max(0, 30000 - elapsed);
+    const remaining = Math.max(0, td * 1000 - elapsed);
 
     const id = setTimeout(() => humanApplyTimeout(), remaining);
     return () => clearTimeout(id);
@@ -1075,6 +1106,27 @@ export default function GameScreen() {
   }
 
   const onCardsActive = gameState.onCardsDeclarations.includes(myPlayerId);
+
+  // Turn duration — local from params, online from roomInfo
+  const turnDuration = isLocalMode
+    ? localTurnDurationRef.current
+    : (roomInfo?.turnDuration ?? 30);
+
+  function handleReact(reactionId: string) {
+    const emoji = REACTION_MAP[reactionId] ?? '🔥';
+    const id = Date.now().toString();
+    if (isLocalMode) {
+      // Local: just show the human's own reaction (AI never reacts)
+      setFloatingReactions((prev) => [
+        ...prev,
+        { id, playerId: myPlayerId, reactionId, emoji, startTime: Date.now() },
+      ]);
+      setTimeout(() => setFloatingReactions((prev) => prev.filter((r) => r.id !== id)), 2500);
+    } else {
+      const { socket: s, roomId: rId } = useGameStore.getState();
+      s?.emit('game:reaction', { roomId: rId, playerId: myPlayerId, reactionId });
+    }
+  }
   const showPreAction =
     isMyTurn && !hasActed && !isAIThinking && !isDealing && gameState.phase !== 'declare-suit';
 
@@ -1158,6 +1210,9 @@ export default function GameScreen() {
         messageColourHex={messageColourHex}
         hasPendingPickup={hasPendingPickup}
         pendingPickupCount={gameState.pendingPickup}
+        turnDuration={turnDuration}
+        floatingReactions={floatingReactions}
+        onReact={handleReact}
       />
 
       <AnimationOverlay ref={overlayRef} />

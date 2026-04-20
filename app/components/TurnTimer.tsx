@@ -2,10 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { THEME } from '../utils/theme';
 
-const TURN_SECONDS = 30;
-
 interface TurnTimerProps {
   timerStartedAt: number | null;
+  turnDuration?: number;  // seconds; 0 = no limit (hides bar)
   currentPlayerColourHex?: string;
   isMyTurn?: boolean;
   currentPlayerName?: string;
@@ -13,33 +12,49 @@ interface TurnTimerProps {
 
 export function TurnTimer({
   timerStartedAt,
+  turnDuration = 30,
   currentPlayerColourHex,
   isMyTurn = false,
   currentPlayerName,
 }: TurnTimerProps) {
-  const [secondsLeft, setSecondsLeft] = useState(TURN_SECONDS);
+  const [secondsLeft, setSecondsLeft] = useState(turnDuration || 30);
 
   useEffect(() => {
-    if (!timerStartedAt) {
-      setSecondsLeft(TURN_SECONDS);
+    const total = turnDuration || 30;
+    if (!timerStartedAt || turnDuration === 0) {
+      setSecondsLeft(total);
       return;
     }
 
     function tick() {
       const elapsed = Math.floor((Date.now() - timerStartedAt!) / 1000);
-      setSecondsLeft(Math.max(0, TURN_SECONDS - elapsed));
+      setSecondsLeft(Math.max(0, total - elapsed));
     }
 
     tick();
     const id = setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [timerStartedAt]);
+  }, [timerStartedAt, turnDuration]);
 
-  const fraction = secondsLeft / TURN_SECONDS;
+  // No limit — show turn label only, no progress bar
+  if (turnDuration === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.labelRow}>
+          <Text style={[styles.turnLabel, { color: isMyTurn ? THEME.gold : THEME.textSecondary }]}>
+            {isMyTurn ? 'Your turn' : currentPlayerName ? `${currentPlayerName}'s turn` : ''}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const total = turnDuration || 30;
+  const fraction = secondsLeft / total;
   const color =
-    secondsLeft <= 8
+    secondsLeft <= Math.ceil(total * 0.27)
       ? THEME.danger
-      : secondsLeft <= 15
+      : secondsLeft <= Math.ceil(total * 0.5)
       ? THEME.warning
       : (currentPlayerColourHex ?? THEME.success);
 

@@ -17,6 +17,7 @@ export interface RoomInfo {
   players: RoomPlayer[];
   maxPlayers: 2 | 3 | 4;
   status: 'waiting' | 'playing' | 'finished';
+  turnDuration?: number;  // seconds; 0 = no limit
 }
 
 interface GameStore {
@@ -31,6 +32,7 @@ interface GameStore {
   pendingTimeoutNotification: string | null;
   connectionState: ConnectionState;
   pendingGameStats: GameResult | null;
+  pendingReaction: { playerId: string; reactionId: string } | null;
 
   setGameState: (state: GameState) => void;
   setError: (error: string | null) => void;
@@ -45,6 +47,7 @@ interface GameStore {
   setPendingTimeoutNotification: (msg: string | null) => void;
   setConnectionState: (state: ConnectionState) => void;
   setPendingGameStats: (stats: GameResult | null) => void;
+  setPendingReaction: (r: { playerId: string; reactionId: string } | null) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -59,12 +62,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   pendingTimeoutNotification: null,
   connectionState: 'connecting',
   pendingGameStats: null,
+  pendingReaction: null,
 
   setGameState: (state) => set({ gameState: state, selectedCards: [] }),
   setError: (error) => set({ error }),
   setPendingTimeoutNotification: (msg) => set({ pendingTimeoutNotification: msg }),
   setConnectionState: (state) => set({ connectionState: state }),
   setPendingGameStats: (stats) => set({ pendingGameStats: stats }),
+  setPendingReaction: (r) => set({ pendingReaction: r }),
 
   setRoom: (roomId, playerId) => set({ roomId, myPlayerId: playerId }),
 

@@ -12,10 +12,26 @@ import { Hand } from './Hand';
 import { DiscardPile } from './DiscardPile';
 import { TurnTimer } from './TurnTimer';
 import Avatar from './Avatar';
+import { SceneRenderer } from './scenes/SceneRenderer';
 import { THEME } from '../utils/theme';
 import type { GameState, Card as CardType, Suit } from '../../engine/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface FloatingReaction {
+  id: string;
+  playerId: string;
+  reactionId: string;
+  emoji: string;
+  startTime: number;
+}
+
+const REACTIONS = [
+  { id: 'fire', emoji: '🔥', label: 'Fire' },
+  { id: 'cold', emoji: '❄️', label: 'Cold' },
+  { id: 'eyes', emoji: '👀', label: 'Eyes' },
+  { id: 'clap', emoji: '👏', label: 'Clap' },
+];
 
 interface RoundTableProps {
   gameState: GameState;
@@ -60,6 +76,11 @@ interface RoundTableProps {
   // Pending pickup for button label
   hasPendingPickup: boolean;
   pendingPickupCount: number;
+  // Timer duration (seconds; 0 = no limit)
+  turnDuration?: number;
+  // Reactions
+  floatingReactions?: FloatingReaction[];
+  onReact?: (reactionId: string) => void;
 }
 
 // ─── Geometry helpers ─────────────────────────────────────────────────────────
@@ -408,6 +429,36 @@ const reconStyles = StyleSheet.create({
   countdown: { fontSize: 13, color: THEME.danger, fontWeight: '600', marginTop: 4 },
 });
 
+// ─── FloatingReactionView ─────────────────────────────────────────────────────
+
+function FloatingReactionView({ emoji, startX, startY }: { emoji: string; startX: number; startY: number }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(translateY, { toValue: -80, duration: 2000, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0, duration: 2000, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: startX - 16,
+        top: startY - 16,
+        opacity,
+        transform: [{ translateY }],
+        zIndex: 30,
+      }}
+    >
+      <Text style={{ fontSize: 28 }}>{emoji}</Text>
+    </Animated.View>
+  );
+}
+
 // ─── RoundTable ────────────────────────────────────────────────────────────────
 
 const HAND_AREA_HEIGHT = 160;
@@ -449,8 +500,30 @@ export function RoundTable({
   messageColourHex,
   hasPendingPickup,
   pendingPickupCount,
+  turnDuration = 30,
+  floatingReactions = [],
+  onReact,
 }: RoundTableProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+
+  // ── timerPercent for scene renderer ─────────────────────────────────────────
+  const [timerPercent, setTimerPercent] = useState(100);
+  useEffect(() => {
+    if (!timerStartedAt || turnDuration === 0) {
+      setTimerPercent(100);
+      return;
+    }
+    const update = () => {
+      const elapsed = Date.now() - timerStartedAt;
+      setTimerPercent(Math.max(0, Math.min(100, 100 - (elapsed / (turnDuration * 1000)) * 100)));
+    };
+    update();
+    const id = setInterval(update, 500);
+    return () => clearInterval(id);
+  }, [timerStartedAt, turnDuration]);
+
+  // ── Reaction picker ──────────────────────────────────────────────────────────
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   if (!gameState || !gameState.players) {
     return (
@@ -591,6 +664,41 @@ export function RoundTable({
             }} />
           ))}
         </View>
+
+        {/* Scene zones — one per player, rotated to face them */}
+        {players.map((player, idx) => {
+          const angle = playerAngles[idx] ?? 0;
+          const pos = polarToCartesian(angle, tableRadius * 0.55, tableCentreX, tableCentreY);
+          const sceneId = (player as { sceneId?: string }).sceneId ?? 'midnight_rain';
+          const isCurrentTurnPlayer = players[gameState.currentPlayerIndex]?.id === player.id;
+          return (
+            <View
+              key={`scene-${player.id}`}
+              style={{
+                position: 'absolute',
+                left: pos.x - 60,
+                top: pos.y - 90,
+                width: 120,
+                height: 180,
+                transform: [{ rotate: `${angle + 90}deg` }],
+                overflow: 'hidden',
+                borderRadius: 8,
+                opacity: 0.85,
+                zIndex: 2,
+              }}
+              pointerEvents="none"
+            >
+              <SceneRenderer
+                sceneId={sceneId}
+                playerAngle={angle}
+                sliceWidth={120}
+                sliceHeight={180}
+                isCurrentPlayer={isCurrentTurnPlayer}
+                timerPercent={timerPercent}
+              />
+            </View>
+          );
+        })}
 
         {/* Message — centre-left of felt, above piles */}
         {!!message && (
@@ -766,6 +874,7 @@ export function RoundTable({
       <View style={tableStyles.actionZone}>
         <TurnTimer
           timerStartedAt={timerStartedAt}
+          turnDuration={turnDuration}
           currentPlayerColourHex={currentPlayerColourHex}
           isMyTurn={isMyTurn && !isDealing && !isAIThinking}
           currentPlayerName={currentPlayerName}
@@ -810,6 +919,65 @@ export function RoundTable({
       {/* ── Reconnection overlay ─────────────────────────────────────────────── */}
       {isReconnecting && (
         <ReconnectionOverlay onTimeout={onReconnectTimeout} />
+      )}
+
+      {/* ── Floating reactions ───────────────────────────────────────────────── */}
+      {floatingReactions.map((r) => {
+        const playerIdx = players.findIndex((p) => p.id === r.playerId);
+        const angle = playerAngles[playerIdx] ?? 90;
+        const pos = polarToCartesian(angle, slotRadius, tableCentreX, tableCentreY);
+        return (
+          <FloatingReactionView
+            key={r.id}
+            emoji={r.emoji}
+            startX={pos.x}
+            startY={pos.y}
+          />
+        );
+      })}
+
+      {/* ── Reaction button — near human player slot ─────────────────────────── */}
+      {onReact && (
+        <View
+          style={{
+            position: 'absolute',
+            left: tableCentreX + 44,
+            top: isSmallScreen
+              ? tableCentreY + tableRadius * 0.85 - 18
+              : Math.min(tableCentreY + tableRadius - 20, screenHeight - 313),
+            zIndex: 20,
+          }}
+        >
+          {showReactionPicker ? (
+            <View style={reactionStyles.picker}>
+              {REACTIONS.map((rx) => (
+                <TouchableOpacity
+                  key={rx.id}
+                  style={reactionStyles.reactionOption}
+                  onPress={() => {
+                    onReact(rx.id);
+                    setShowReactionPicker(false);
+                  }}
+                >
+                  <Text style={reactionStyles.reactionEmoji}>{rx.emoji}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={reactionStyles.reactionOption}
+                onPress={() => setShowReactionPicker(false)}
+              >
+                <Text style={reactionStyles.reactionClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={reactionStyles.btn}
+              onPress={() => setShowReactionPicker(true)}
+            >
+              <Text style={reactionStyles.btnText}>😊</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </View>
   );
@@ -976,5 +1144,47 @@ const tableStyles = StyleSheet.create({
     color: THEME.gold,
     fontSize: 13,
     fontWeight: '600',
+  },
+});
+
+const reactionStyles = StyleSheet.create({
+  btn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(13,27,42,0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnText: {
+    fontSize: 16,
+  },
+  picker: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(13,27,42,0.92)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.3)',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    gap: 4,
+    alignItems: 'center',
+  },
+  reactionOption: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reactionEmoji: {
+    fontSize: 20,
+  },
+  reactionClose: {
+    fontSize: 12,
+    color: THEME.textMuted,
+    fontWeight: '700',
   },
 });

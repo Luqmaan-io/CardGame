@@ -66,7 +66,7 @@ export function useSocket() {
 
     newSocket.on(
       'room:joined',
-      ({ roomId, room }: { roomId: string; room: { id: string; players: { socketId: string; playerId: string; name: string; colourHex?: string; avatarId?: string }[]; maxPlayers: 2 | 3 | 4; status: RoomInfo['status'] } }) => {
+      ({ roomId, room }: { roomId: string; room: { id: string; players: { socketId: string; playerId: string; name: string; colourHex?: string; avatarId?: string }[]; maxPlayers: 2 | 3 | 4; status: RoomInfo['status']; turnDuration?: number } }) => {
         const playerId =
           room.players.find((p) => p.socketId === newSocket.id)?.playerId ?? '';
         setRoom(roomId, playerId);
@@ -75,18 +75,20 @@ export function useSocket() {
           players: room.players.map((p) => ({ playerId: p.playerId, name: p.name, colourHex: p.colourHex, avatarId: p.avatarId })),
           maxPlayers: room.maxPlayers,
           status: room.status,
+          turnDuration: room.turnDuration,
         });
       }
     );
 
     newSocket.on(
       'room:updated',
-      ({ room }: { room: { id: string; players: { playerId: string; name: string; colourHex?: string; avatarId?: string }[]; maxPlayers: 2 | 3 | 4; status: RoomInfo['status'] } }) => {
+      ({ room }: { room: { id: string; players: { playerId: string; name: string; colourHex?: string; avatarId?: string }[]; maxPlayers: 2 | 3 | 4; status: RoomInfo['status']; turnDuration?: number } }) => {
         setRoomInfo({
           id: room.id,
           players: room.players.map((p) => ({ playerId: p.playerId, name: p.name, colourHex: p.colourHex, avatarId: p.avatarId })),
           maxPlayers: room.maxPlayers,
           status: room.status,
+          turnDuration: room.turnDuration,
         });
       }
     );
@@ -134,6 +136,13 @@ export function useSocket() {
         setPendingTimeoutNotification(`${playerName} lost connection — waiting for them to return…`);
       }
     );
+
+    newSocket.on(
+      'game:reaction',
+      ({ playerId, reactionId }: { playerId: string; reactionId: string }) => {
+        useGameStore.getState().setPendingReaction({ playerId, reactionId });
+      }
+    );
   }, []);
 
   function playCards(cards: Card[], declaredSuit?: Suit) {
@@ -146,9 +155,9 @@ export function useSocket() {
     s?.emit('game:draw', { roomId });
   }
 
-  function createRoom(maxPlayers: 2 | 3 | 4 = 4, userId?: string, colourHex?: string, avatarId?: string) {
+  function createRoom(maxPlayers: 2 | 3 | 4 = 4, userId?: string, colourHex?: string, avatarId?: string, turnDuration: number = 30) {
     const { socket: s, playerName } = useGameStore.getState();
-    s?.emit('room:create', { maxPlayers, name: playerName, userId, colourHex, avatarId });
+    s?.emit('room:create', { maxPlayers, name: playerName, userId, colourHex, avatarId, turnDuration });
   }
 
   function joinRoom(roomId: string, userId?: string, colourHex?: string, avatarId?: string) {

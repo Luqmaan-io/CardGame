@@ -18,15 +18,6 @@ const SUIT_SYMBOLS: Record<Suit, string> = {
 
 const RED_SUITS = new Set<Suit>(['hearts', 'diamonds']);
 
-// ─── Stable offset cache ──────────────────────────────────────────────────────
-// Keyed by card identity only (not position) so offsets survive re-ordering.
-// Top card is always flat; non-top cards get a fixed deterministic offset.
-
-interface CardOffset {
-  rotation: number;
-  offsetX: number;
-  offsetY: number;
-}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -38,45 +29,14 @@ interface DiscardPileProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
-  // Key by card identity — never changes regardless of fan position
   function getCardKey(card: CardType) {
     return `${card.rank}_${card.suit}`;
-  }
-
-  // Cache keyed by card identity: once set it never changes unless the card
-  // becomes the top card (in which case we override to flat).
-  const offsetsRef = useRef<Record<string, CardOffset>>({});
-
-  function getStableOffset(card: CardType, isTop: boolean): CardOffset {
-    const key = getCardKey(card);
-    if (isTop) {
-      offsetsRef.current[key] = { rotation: 0, offsetX: 0, offsetY: 0 };
-      return offsetsRef.current[key]!;
-    }
-    if (!offsetsRef.current[key]) {
-      const seed = card.rank.charCodeAt(0) + card.suit.charCodeAt(0);
-      const direction = seed % 2 === 0 ? 1 : -1;
-      offsetsRef.current[key] = {
-        rotation: direction * 12,   // fixed ±12° for all non-top cards
-        offsetX: direction * 14,
-        offsetY: 6,
-      };
-    }
-    return offsetsRef.current[key]!;
   }
 
   const recentCards = useMemo(
     () => discard.slice(-FAN_SIZE).reverse(), // index 0 = top card
     [discard]
   );
-
-  // Prune stale keys when pile changes
-  useEffect(() => {
-    const validKeys = new Set(recentCards.map(getCardKey));
-    for (const key of Object.keys(offsetsRef.current)) {
-      if (!validKeys.has(key)) delete offsetsRef.current[key];
-    }
-  }, [recentCards]);
 
   // ── Active suit fade ──────────────────────────────────────────────────────────
   const suitOpacity = useRef(new Animated.Value(activeSuit ? 1 : 0)).current;
@@ -119,10 +79,10 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
       {discard.length === 0 && <View style={styles.emptyPile} />}
 
       {/* Render bottom-to-top so top card is drawn last (highest z) */}
+      {/* Each card sits 1.5px lower than the one above it — just enough depth to show the stack */}
       {[...recentCards].reverse().map((card, reversedIdx) => {
-        const fanIdx = recentCards.length - 1 - reversedIdx;
-        const isTop = fanIdx === 0;
-        const { rotation, offsetX, offsetY } = getStableOffset(card, isTop);
+        const stackIdx = recentCards.length - 1 - reversedIdx; // 0 = top
+        const isTop = stackIdx === 0;
 
         if (isTop) {
           return (
@@ -131,13 +91,9 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
               style={[
                 styles.cardSlot,
                 {
+                  top: 0,
                   zIndex: FAN_SIZE,
-                  transform: [
-                    { translateX: offsetX },
-                    { translateY: offsetY },
-                    { rotate: `${rotation}deg` },
-                    { scale: landingScale },
-                  ],
+                  transform: [{ scale: landingScale }],
                 },
               ]}
             >
@@ -152,12 +108,8 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
             style={[
               styles.cardSlot,
               {
-                zIndex: FAN_SIZE - fanIdx,
-                transform: [
-                  { translateX: offsetX },
-                  { translateY: offsetY },
-                  { rotate: `${rotation}deg` },
-                ],
+                top: stackIdx * 1.5,
+                zIndex: FAN_SIZE - stackIdx,
               },
             ]}
           >
@@ -190,11 +142,9 @@ export function DiscardPile({ discard, activeSuit }: DiscardPileProps) {
 
 const styles = StyleSheet.create({
   container: {
-    width: 180,
-    height: 160,
+    width: CARD_W,
+    height: CARD_H + 6,  // 6px for stack depth offset
     position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   cardSlot: {
     position: 'absolute',
@@ -210,8 +160,8 @@ const styles = StyleSheet.create({
   suitPillWrapper: {
     position: 'absolute',
     top: -38,
-    left: 0,
-    right: 0,
+    left: -20,
+    right: -20,
     alignItems: 'center',
   },
   suitPill: {

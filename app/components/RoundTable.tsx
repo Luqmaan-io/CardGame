@@ -6,17 +6,29 @@ import {
   StyleSheet,
   Animated,
   useWindowDimensions,
+  ViewStyle,
 } from 'react-native';
-import { Card, CardBack } from './Card';
+import { CardBack } from './Card';
 import { Hand } from './Hand';
 import { DiscardPile } from './DiscardPile';
 import { TurnTimer } from './TurnTimer';
 import Avatar from './Avatar';
 import { SceneRenderer } from './scenes/SceneRenderer';
 import { THEME } from '../utils/theme';
-import type { GameState, Card as CardType, Suit } from '../../engine/types';
+import type { GameState, Card as CardType } from '../../engine/types';
+
+// ─── Table coordinate space ────────────────────────────────────────────────────
+// All Layer 1 content is positioned in a fixed 600×600 unit space.
+// The centre is always (300, 300). This is independent of screen size.
+// Layer 2 (the perspective wrapper) scales and positions this onto the screen.
+
+const TABLE_SIZE = 600
+const TABLE_CENTRE = 300
+const TABLE_RADIUS = 280   // felt radius within the 600×600 space
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export type ViewAngle = 'bottom' | 'top' | 'left' | 'right'
 
 export interface FloatingReaction {
   id: string;
@@ -81,31 +93,46 @@ interface RoundTableProps {
   // Reactions
   floatingReactions?: FloatingReaction[];
   onReact?: (reactionId: string) => void;
+  // Multi-perspective foundation — defaults to 'bottom'
+  viewAngle?: ViewAngle;
 }
 
 // ─── Geometry helpers ─────────────────────────────────────────────────────────
 
+// Human is always at 90° (bottom of table in y-down screen coordinates).
+// Angles are spaced evenly; myIndex rotates the ring so human lands at 90°.
 function getPlayerAngles(playerCount: number, myIndex: number): number[] {
-  const angles: number[] = [];
-  for (let i = 0; i < playerCount; i++) {
-    // 90° = bottom in screen coords (y-down); human always at bottom
-    const offset = (i - myIndex) * (360 / playerCount);
-    angles.push(((90 + offset) % 360 + 360) % 360);
+  const baseAngles: Record<number, number[]> = {
+    2: [90, 270],
+    3: [90, 210, 330],
+    4: [90, 180, 270, 0],
   }
-  return angles;
+  const base = baseAngles[playerCount] ?? Array.from(
+    { length: playerCount },
+    (_, i) => ((90 + i * (360 / playerCount)) % 360)
+  )
+  return Array.from({ length: playerCount }, (_, i) =>
+    base[((i - myIndex + playerCount) % playerCount)] ?? 90
+  )
 }
 
-function polarToCartesian(
-  angleDeg: number,
-  radius: number,
-  centreX: number,
-  centreY: number
-): { x: number; y: number } {
-  const rad = (angleDeg * Math.PI) / 180;
+// Convert a polar angle to table coordinates (600×600 space).
+function getTablePos(angleDeg: number, radius: number): { x: number; y: number } {
+  const rad = (angleDeg * Math.PI) / 180
   return {
-    x: centreX + radius * Math.cos(rad),
-    y: centreY + radius * Math.sin(rad),
-  };
+    x: TABLE_CENTRE + radius * Math.cos(rad),
+    y: TABLE_CENTRE + radius * Math.sin(rad),
+  }
+}
+
+// Map viewAngle to the appropriate perspective transform array.
+function getPerspectiveTransform(viewAngle: ViewAngle): ViewStyle['transform'] {
+  switch (viewAngle) {
+    case 'top':   return [{ perspective: 900 }, { rotateX: '-28deg' }]
+    case 'left':  return [{ perspective: 900 }, { rotateY: '28deg' }]
+    case 'right': return [{ perspective: 900 }, { rotateY: '-28deg' }]
+    default:      return [{ perspective: 900 }, { rotateX: '28deg' }]
+  }
 }
 
 // ─── DrawPileView ─────────────────────────────────────────────────────────────
@@ -462,11 +489,24 @@ function FloatingReactionView({ emoji, startX, startY }: { emoji: string; startX
 // ─── RoundTable ────────────────────────────────────────────────────────────────
 
 const HAND_AREA_HEIGHT = 160;
-const ACTION_ZONE_HEIGHT = 140; // bottom overlay height (timer + buttons + padding)
+const ACTION_ZONE_HEIGHT = 140;
 
 const SUIT_SYMBOLS: Record<string, string> = {
   hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠',
 };
+
+// Pile dimensions in table coordinate space (fixed, screen-independent)
+const CARD_W = 52
+const CARD_H = 76
+const PILE_GAP = 20
+const PILES_TOTAL_WIDTH = CARD_W * 2 + PILE_GAP
+const DISCARD_X = TABLE_CENTRE - PILES_TOTAL_WIDTH / 2          // 238
+const DISCARD_Y = TABLE_CENTRE - CARD_H / 2                     // 262
+const DRAW_X = TABLE_CENTRE - PILES_TOTAL_WIDTH / 2 + CARD_W + PILE_GAP  // 310
+const DRAW_Y = TABLE_CENTRE - CARD_H / 2                        // 262
+
+// Slot placement radius — keeps slots on the visible table rim
+const SLOT_RADIUS = TABLE_RADIUS * 0.88   // ≈ 246
 
 export function RoundTable({
   gameState,
@@ -481,7 +521,7 @@ export function RoundTable({
   dealtCardCounts,
   deckCountOverride,
   isAIThinking,
-  onCardsActive,
+  onCardsActive: _onCardsActive,
   autoDrawCountdown,
   onCancelAutoDraw,
   timerStartedAt,
@@ -503,6 +543,7 @@ export function RoundTable({
   turnDuration = 30,
   floatingReactions = [],
   onReact,
+  viewAngle = 'bottom',
 }: RoundTableProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
@@ -540,27 +581,32 @@ export function RoundTable({
 
   const myPlayer = players.find((p) => p.id === myPlayerId);
   const myIndex = players.findIndex((p) => p.id === myPlayerId);
-  const opponents = players.filter((p) => p.id !== myPlayerId);
 
-  // ── Table geometry ──────────────────────────────────────────────────────────
-  const isSmallScreen = screenWidth < 768;
+  // ── Screen geometry — where the table wrapper sits on screen ─────────────────
+  const isSmallScreen = screenWidth < 768
 
-  // On mobile: clearly circular — navy background visible on all sides
-  // On web/tablet: larger table that fills more of the viewport
-  const tableRadius = isSmallScreen
-    ? screenWidth * 0.42
-    : Math.min(screenWidth, screenHeight) * 0.52;
+  // Table appears at 88% screen width on mobile, or 70% of viewport on desktop
+  const tableScreenSize = isSmallScreen
+    ? screenWidth * 0.88
+    : Math.min(screenWidth * 0.7, screenHeight * 0.7)
 
-  const tableCentreX = screenWidth / 2;
-  // Higher on mobile — leaves room for hand/action zone below
-  const tableCentreY = isSmallScreen
-    ? screenHeight * 0.38
-    : screenHeight / 2;
+  // Scale factor: maps 600-unit table space to screen pixels
+  const tableScale = tableScreenSize / TABLE_SIZE
 
-  // Slot placement radius — keeps opponent slots on the visible table rim
-  const slotRadius = isSmallScreen
-    ? tableRadius * 0.88
-    : Math.min(screenWidth * 0.44, screenHeight * 0.38, 180);
+  // Where the perspective wrapper is positioned on screen
+  const tableScreenX = (screenWidth - tableScreenSize) / 2
+  const tableScreenY = isSmallScreen
+    ? screenHeight * 0.12   // 12% from top on mobile — leaves room for hand
+    : (screenHeight - tableScreenSize) / 2
+
+  // Layer 1 is 600×600, scaled by tableScale.
+  // Transform is around center (300, 300), so to visually align top-left
+  // of the scaled content with the wrapper's (0,0), we shift:
+  //   left = top = 300 * (tableScale - 1)
+  const layer1Offset = 300 * (tableScale - 1)
+
+  // The perspective transform — varies by viewAngle prop
+  const perspectiveTransform = getPerspectiveTransform(viewAngle)
 
   // ── Player angles ────────────────────────────────────────────────────────────
   const playerAngles = getPlayerAngles(players.length, myIndex);
@@ -578,276 +624,312 @@ export function RoundTable({
     isMyTurn && !hasActed && !isAIThinking && !isDealing &&
     gameState.phase !== 'declare-suit';
 
+  // ── tableToScreen: approximate screen coords for Layer 3 overlays ────────────
+  // Ignores perspective distortion (acceptable for floating effects).
+  const tableToScreen = (tx: number, ty: number) => ({
+    x: tableScreenX + tx * tableScale,
+    y: tableScreenY + ty * tableScale,
+  })
+
   return (
     <View style={tableStyles.root}>
 
-      {/* ── Perspective-transformed table layer ───────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════════
+          Layer 2 — Perspective wrapper
+          Positioned on screen at tableScreenX/tableScreenY.
+          Applies the tilt. Contains Layer 1 only.
+          ═══════════════════════════════════════════════════════════════════════ */}
       <View
-        style={[
-          tableStyles.perspectiveLayer,
-          {
-            width: screenWidth,
-            height: screenHeight,
-            transform: [
-              { perspective: 900 },
-              { rotateX: '22deg' },
-            ],
-          },
-        ]}
+        style={{
+          position: 'absolute',
+          left: tableScreenX,
+          top: tableScreenY,
+          width: tableScreenSize,
+          height: tableScreenSize,
+          transform: perspectiveTransform,
+          // Web: ensure transform rotates around center
+          ...(typeof window !== 'undefined' ? { transformOrigin: 'center center' } : {}),
+          overflow: 'visible',
+        }}
         pointerEvents="box-none"
       >
-        {/* Outer rim — navy with gold border */}
-        <View
-          style={{
-            position: 'absolute',
-            width: tableRadius * 2 + 24,
-            height: tableRadius * 2 + 24,
-            borderRadius: tableRadius + 12,
-            backgroundColor: THEME.tableRim,
-            borderWidth: 3,
-            borderColor: THEME.gold,
-            left: tableCentreX - tableRadius - 12,
-            top: tableCentreY - tableRadius - 12,
-            shadowColor: THEME.gold,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.25,
-            shadowRadius: 12,
-            elevation: 8,
-          }}
-        />
 
-        {/* Felt surface — deep green */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            Layer 1 — Table content
+            600×600 unit coordinate space. Scale applied here so all content
+            uses fixed table coordinates regardless of screen size.
+            ═══════════════════════════════════════════════════════════════════ */}
         <View
           style={{
             position: 'absolute',
-            width: tableRadius * 2,
-            height: tableRadius * 2,
-            borderRadius: tableRadius,
-            backgroundColor: THEME.tableFelt,
-            left: tableCentreX - tableRadius,
-            top: tableCentreY - tableRadius,
+            width: TABLE_SIZE,
+            height: TABLE_SIZE,
+            left: layer1Offset,
+            top: layer1Offset,
+            transform: [{ scale: tableScale }],
           }}
-        />
-
-        {/* Felt crosshatch texture at 6% opacity */}
-        <View
-          style={{
-            position: 'absolute',
-            width: tableRadius * 2,
-            height: tableRadius * 2,
-            borderRadius: tableRadius,
-            overflow: 'hidden',
-            left: tableCentreX - tableRadius,
-            top: tableCentreY - tableRadius,
-            opacity: 0.06,
-          }}
-          pointerEvents="none"
+          pointerEvents="box-none"
         >
-          {Array.from({ length: 40 }).map((_, i) => (
-            <View key={`h${i}`} style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: i * (tableRadius * 2 / 40),
-              height: 0.5,
-              backgroundColor: '#ffffff',
-            }} />
-          ))}
-          {Array.from({ length: 40 }).map((_, i) => (
-            <View key={`v${i}`} style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: i * (tableRadius * 2 / 40),
-              width: 0.5,
-              backgroundColor: '#ffffff',
-            }} />
-          ))}
-        </View>
 
-        {/* Scene zones — one per player, rotated to face them */}
-        {players.map((player, idx) => {
-          const angle = playerAngles[idx] ?? 0;
-          const pos = polarToCartesian(angle, tableRadius * 0.55, tableCentreX, tableCentreY);
-          const sceneId = (player as { sceneId?: string }).sceneId ?? 'midnight_rain';
-          const isCurrentTurnPlayer = players[gameState.currentPlayerIndex]?.id === player.id;
-          return (
+          {/* ── Outer rim — navy with gold border ────────────────────────── */}
+          <View
+            style={{
+              position: 'absolute',
+              width: TABLE_RADIUS * 2 + 24,
+              height: TABLE_RADIUS * 2 + 24,
+              borderRadius: TABLE_RADIUS + 12,
+              backgroundColor: THEME.tableRim,
+              borderWidth: 3,
+              borderColor: THEME.gold,
+              left: TABLE_CENTRE - TABLE_RADIUS - 12,
+              top: TABLE_CENTRE - TABLE_RADIUS - 12,
+              shadowColor: THEME.gold,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              shadowRadius: 12,
+              elevation: 8,
+              zIndex: 1,
+            }}
+          />
+
+          {/* ── Felt surface — deep green ─────────────────────────────────── */}
+          <View
+            style={{
+              position: 'absolute',
+              width: TABLE_RADIUS * 2,
+              height: TABLE_RADIUS * 2,
+              borderRadius: TABLE_RADIUS,
+              backgroundColor: THEME.tableFelt,
+              left: TABLE_CENTRE - TABLE_RADIUS,
+              top: TABLE_CENTRE - TABLE_RADIUS,
+              zIndex: 2,
+            }}
+          />
+
+          {/* ── Felt crosshatch texture at 6% opacity ────────────────────── */}
+          <View
+            style={{
+              position: 'absolute',
+              width: TABLE_RADIUS * 2,
+              height: TABLE_RADIUS * 2,
+              borderRadius: TABLE_RADIUS,
+              overflow: 'hidden',
+              left: TABLE_CENTRE - TABLE_RADIUS,
+              top: TABLE_CENTRE - TABLE_RADIUS,
+              opacity: 0.06,
+              zIndex: 3,
+            }}
+            pointerEvents="none"
+          >
+            {Array.from({ length: 40 }).map((_, i) => (
+              <View key={`h${i}`} style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: i * (TABLE_RADIUS * 2 / 40),
+                height: 0.5,
+                backgroundColor: '#ffffff',
+              }} />
+            ))}
+            {Array.from({ length: 40 }).map((_, i) => (
+              <View key={`v${i}`} style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: i * (TABLE_RADIUS * 2 / 40),
+                width: 0.5,
+                backgroundColor: '#ffffff',
+              }} />
+            ))}
+          </View>
+
+          {/* ── Scene zones — one per player, rotated to face them ───────── */}
+          {players.map((player, idx) => {
+            const angle = playerAngles[idx] ?? 0;
+            const pos = getTablePos(angle, TABLE_RADIUS * 0.55);
+            const sceneId = (player as { sceneId?: string }).sceneId ?? 'midnight_rain';
+            const isCurrentTurnPlayer = players[gameState.currentPlayerIndex]?.id === player.id;
+            return (
+              <View
+                key={`scene-${player.id}`}
+                style={{
+                  position: 'absolute',
+                  left: pos.x - 60,
+                  top: pos.y - 90,
+                  width: 120,
+                  height: 180,
+                  transform: [{ rotate: `${angle + 90}deg` }],
+                  overflow: 'hidden',
+                  borderRadius: 8,
+                  opacity: 0.85,
+                  zIndex: 4,
+                }}
+                pointerEvents="none"
+              >
+                <SceneRenderer
+                  sceneId={sceneId}
+                  playerAngle={angle}
+                  sliceWidth={120}
+                  sliceHeight={180}
+                  isCurrentPlayer={isCurrentTurnPlayer}
+                  timerPercent={timerPercent}
+                />
+              </View>
+            );
+          })}
+
+          {/* ── Message — upper-left of felt, above piles ────────────────── */}
+          {!!message && (
             <View
-              key={`scene-${player.id}`}
               style={{
                 position: 'absolute',
-                left: pos.x - 60,
-                top: pos.y - 90,
-                width: 120,
-                height: 180,
-                transform: [{ rotate: `${angle + 90}deg` }],
-                overflow: 'hidden',
-                borderRadius: 8,
-                opacity: 0.85,
-                zIndex: 2,
+                left: TABLE_CENTRE - TABLE_RADIUS * 0.75,
+                top: TABLE_CENTRE - TABLE_RADIUS * 0.55,
+                maxWidth: TABLE_RADIUS * 0.9,
+                zIndex: 10,
               }}
               pointerEvents="none"
             >
-              <SceneRenderer
-                sceneId={sceneId}
-                playerAngle={angle}
-                sliceWidth={120}
-                sliceHeight={180}
-                isCurrentPlayer={isCurrentTurnPlayer}
-                timerPercent={timerPercent}
-              />
+              <View style={tableStyles.messageBox}>
+                <Text
+                  style={[
+                    tableStyles.messageText,
+                    messageColourHex ? { color: messageColourHex } : undefined,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {message}
+                </Text>
+              </View>
             </View>
-          );
-        })}
+          )}
 
-        {/* Message — centre-left of felt, above piles */}
-        {!!message && (
+          {/* ── Discard pile — left of centre ────────────────────────────── */}
           <View
+            ref={discardPileRef}
             style={{
               position: 'absolute',
-              left: tableCentreX - tableRadius * 0.75,
-              top: tableCentreY - tableRadius * 0.55,
-              maxWidth: tableRadius * 0.9,
-              zIndex: 10,
+              left: DISCARD_X,
+              top: DISCARD_Y,
+              zIndex: 5,
             }}
-            pointerEvents="none"
           >
-            <View style={tableStyles.messageBox}>
-              <Text
-                style={[
-                  tableStyles.messageText,
-                  messageColourHex ? { color: messageColourHex } : undefined,
-                ]}
-                numberOfLines={2}
-              >
-                {message}
-              </Text>
-            </View>
+            <DiscardPile discard={discard} activeSuit={activeSuit} />
           </View>
-        )}
 
-        {/* ── Centre piles — draw (right) and discard (left), symmetrically centred */}
-        {(() => {
-          const CARD_WIDTH = 52;
-          const PILE_GAP = 20;
-          const totalPilesWidth = CARD_WIDTH * 2 + PILE_GAP;
-          const discardX = tableCentreX - totalPilesWidth / 2;
-          const drawX = tableCentreX - totalPilesWidth / 2 + CARD_WIDTH + PILE_GAP;
-          const pilesY = isSmallScreen
-            ? tableCentreY - tableRadius * 0.15
-            : tableCentreY - 45;
-          return (
-            <>
-              {/* Discard pile — left */}
-              <View
-                ref={discardPileRef}
-                style={{ position: 'absolute', left: discardX, top: pilesY, zIndex: 5 }}
-              >
-                <DiscardPile discard={discard} activeSuit={activeSuit} />
-              </View>
-
-              {/* Draw pile — right */}
-              <View
-                ref={drawPileRef}
-                style={{ position: 'absolute', left: drawX, top: pilesY, alignItems: 'center', zIndex: 5 }}
-              >
-                <DrawPileView
-                  count={displayDeckCount}
-                  onPress={showPreAction && !selectedCards.length ? onDraw : undefined}
-                />
-              </View>
-            </>
-          );
-        })()}
-
-        {/* Active suit indicator — between the two piles */}
-        {activeSuit && activeSuitSymbol && (
+          {/* ── Draw pile — right of centre ──────────────────────────────── */}
           <View
+            ref={drawPileRef}
             style={{
               position: 'absolute',
-              left: tableCentreX - 15,
-              top: tableCentreY - 56,
-              zIndex: 8,
+              left: DRAW_X,
+              top: DRAW_Y,
+              alignItems: 'center',
+              zIndex: 5,
             }}
-            pointerEvents="none"
           >
-            <View style={tableStyles.suitIndicator}>
-              <Text
-                style={[
-                  tableStyles.suitSymbol,
-                  { color: activeSuitIsRed ? THEME.cardRed : THEME.textPrimary },
-                ]}
-              >
-                {activeSuitSymbol}
-              </Text>
-            </View>
+            <DrawPileView
+              count={displayDeckCount}
+              onPress={showPreAction && !selectedCards.length ? onDraw : undefined}
+            />
           </View>
-        )}
 
-        {/* Opponent slots around the rim */}
-        {opponentList.map(({ player, angle, index: playerIdx }) => {
-          const pos = polarToCartesian(angle, slotRadius, tableCentreX, tableCentreY);
-          const isCurrentTurn = players[gameState.currentPlayerIndex]?.id === player.id;
-          const vCount = dealtCardCounts ? (dealtCardCounts[player.id] ?? 0) : undefined;
-          const name = playerNames[player.id] ?? player.id.slice(0, 8);
-
-          return (
+          {/* ── Active suit indicator — between the two piles ────────────── */}
+          {activeSuit && activeSuitSymbol && (
             <View
-              key={player.id}
-              ref={(r) => {
-                if (opponentRefs) opponentRefs.current[player.id] = r;
-              }}
               style={{
                 position: 'absolute',
-                left: pos.x - 38,
-                top: pos.y - 55,
+                left: TABLE_CENTRE - 15,
+                top: TABLE_CENTRE - 55,
+                zIndex: 8,
+              }}
+              pointerEvents="none"
+            >
+              <View style={tableStyles.suitIndicator}>
+                <Text
+                  style={[
+                    tableStyles.suitSymbol,
+                    { color: activeSuitIsRed ? THEME.cardRed : THEME.textPrimary },
+                  ]}
+                >
+                  {activeSuitSymbol}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* ── Opponent slots around the rim ────────────────────────────── */}
+          {opponentList.map(({ player, angle }) => {
+            const pos = getTablePos(angle, SLOT_RADIUS);
+            const isCurrentTurn = players[gameState.currentPlayerIndex]?.id === player.id;
+            const vCount = dealtCardCounts ? (dealtCardCounts[player.id] ?? 0) : undefined;
+            const name = playerNames[player.id] ?? player.id.slice(0, 8);
+
+            return (
+              <View
+                key={player.id}
+                ref={(r) => {
+                  if (opponentRefs) opponentRefs.current[player.id] = r;
+                }}
+                style={{
+                  position: 'absolute',
+                  left: pos.x - 38,
+                  top: pos.y - 55,
+                  zIndex: 6,
+                }}
+              >
+                <OpponentSlotView
+                  playerId={player.id}
+                  hand={player.hand}
+                  name={name}
+                  isCurrentTurn={isCurrentTurn}
+                  hasOnCardsDeclaration={gameState.onCardsDeclarations.includes(player.id)}
+                  colourHex={player.colourHex ?? THEME.info}
+                  avatarId={(player as { avatarId?: string }).avatarId ?? 'avatar_01'}
+                  visibleCardCount={vCount}
+                  isFlashing={flashingPlayerId === player.id}
+                />
+              </View>
+            );
+          })}
+
+          {/* ── Human avatar — bottom rim of table ───────────────────────── */}
+          {myPlayer && (
+            <View
+              style={{
+                position: 'absolute',
+                left: TABLE_CENTRE - 36,
+                top: TABLE_CENTRE + SLOT_RADIUS - 28,
+                width: 72,
+                alignItems: 'center',
                 zIndex: 6,
               }}
+              pointerEvents="none"
             >
-              <OpponentSlotView
-                playerId={player.id}
-                hand={player.hand}
-                name={name}
-                isCurrentTurn={isCurrentTurn}
-                hasOnCardsDeclaration={gameState.onCardsDeclarations.includes(player.id)}
-                colourHex={player.colourHex ?? THEME.info}
-                avatarId={(player as { avatarId?: string }).avatarId ?? 'avatar_01'}
-                visibleCardCount={vCount}
-                isFlashing={flashingPlayerId === player.id}
+              <Avatar
+                avatarId={(myPlayer as { avatarId?: string }).avatarId ?? 'avatar_01'}
+                size={32}
+                colourHex={myPlayer.colourHex ?? THEME.info}
+                showRing={isMyTurn}
               />
+              <Text style={[tableStyles.youLabel, { color: myPlayer.colourHex ?? THEME.info }]}>
+                You
+              </Text>
             </View>
-          );
-        })}
+          )}
 
-        {/* Human avatar — anchored at bottom rim of table */}
-        {myPlayer && (
-          <View
-            style={{
-              position: 'absolute',
-              left: tableCentreX - 36,
-              top: isSmallScreen
-                ? tableCentreY + tableRadius * 0.85 - 20
-                : Math.min(tableCentreY + tableRadius - 22, screenHeight - 315),
-              width: 72,
-              alignItems: 'center',
-              zIndex: 6,
-            }}
-            pointerEvents="none"
-          >
-            <Avatar
-              avatarId={(myPlayer as { avatarId?: string }).avatarId ?? 'avatar_01'}
-              size={32}
-              colourHex={myPlayer.colourHex ?? THEME.info}
-              showRing={isMyTurn}
-            />
-            <Text style={[tableStyles.youLabel, { color: myPlayer.colourHex ?? THEME.info }]}>
-              You
-            </Text>
-          </View>
-        )}
+        </View>
+        {/* End Layer 1 */}
+
       </View>
+      {/* End Layer 2 */}
 
-      {/* ── Human hand fan — above the action zone, no perspective ────────── */}
+      {/* ═════════���═════════════════════════════════════════════════════════════
+          Layer 3 — Flat UI overlay
+          All elements here use screen coordinates. Never affected by tilt.
+          ═══════════════════════════════════════════════════════════════════════ */}
+
+      {/* ── Human hand fan — above the action zone ──────────────────────────── */}
       <View
         ref={humanHandRef}
         style={[
@@ -870,7 +952,7 @@ export function RoundTable({
         )}
       </View>
 
-      {/* ── Bottom action zone overlay (timer + buttons) ────────────────────── */}
+      {/* ── Bottom action zone (timer + buttons) ────────────────────────────── */}
       <View style={tableStyles.actionZone}>
         <TurnTimer
           timerStartedAt={timerStartedAt}
@@ -921,64 +1003,69 @@ export function RoundTable({
         <ReconnectionOverlay onTimeout={onReconnectTimeout} />
       )}
 
-      {/* ── Floating reactions ───────────────────────────────────────────────── */}
+      {/* ── Floating reactions — screen-space positions ──────────────────────── */}
       {floatingReactions.map((r) => {
         const playerIdx = players.findIndex((p) => p.id === r.playerId);
         const angle = playerAngles[playerIdx] ?? 90;
-        const pos = polarToCartesian(angle, slotRadius, tableCentreX, tableCentreY);
+        const tablePos = getTablePos(angle, SLOT_RADIUS);
+        const screenPos = tableToScreen(tablePos.x, tablePos.y);
         return (
           <FloatingReactionView
             key={r.id}
             emoji={r.emoji}
-            startX={pos.x}
-            startY={pos.y}
+            startX={screenPos.x}
+            startY={screenPos.y}
           />
         );
       })}
 
       {/* ── Reaction button — near human player slot ─────────────────────────── */}
-      {onReact && (
-        <View
-          style={{
-            position: 'absolute',
-            left: tableCentreX + 44,
-            top: isSmallScreen
-              ? tableCentreY + tableRadius * 0.85 - 18
-              : Math.min(tableCentreY + tableRadius - 20, screenHeight - 313),
-            zIndex: 20,
-          }}
-        >
-          {showReactionPicker ? (
-            <View style={reactionStyles.picker}>
-              {REACTIONS.map((rx) => (
+      {onReact && (() => {
+        // Human is at angle=90° (bottom). Convert to screen coords.
+        const humanTablePos = getTablePos(90, SLOT_RADIUS);
+        const humanScreen = tableToScreen(humanTablePos.x, humanTablePos.y);
+        return (
+          <View
+            style={{
+              position: 'absolute',
+              left: humanScreen.x + 44,
+              top: humanScreen.y - 18,
+              zIndex: 20,
+            }}
+          >
+            {showReactionPicker ? (
+              <View style={reactionStyles.picker}>
+                {REACTIONS.map((rx) => (
+                  <TouchableOpacity
+                    key={rx.id}
+                    style={reactionStyles.reactionOption}
+                    onPress={() => {
+                      onReact(rx.id);
+                      setShowReactionPicker(false);
+                    }}
+                  >
+                    <Text style={reactionStyles.reactionEmoji}>{rx.emoji}</Text>
+                  </TouchableOpacity>
+                ))}
                 <TouchableOpacity
-                  key={rx.id}
                   style={reactionStyles.reactionOption}
-                  onPress={() => {
-                    onReact(rx.id);
-                    setShowReactionPicker(false);
-                  }}
+                  onPress={() => setShowReactionPicker(false)}
                 >
-                  <Text style={reactionStyles.reactionEmoji}>{rx.emoji}</Text>
+                  <Text style={reactionStyles.reactionClose}>✕</Text>
                 </TouchableOpacity>
-              ))}
+              </View>
+            ) : (
               <TouchableOpacity
-                style={reactionStyles.reactionOption}
-                onPress={() => setShowReactionPicker(false)}
+                style={reactionStyles.btn}
+                onPress={() => setShowReactionPicker(true)}
               >
-                <Text style={reactionStyles.reactionClose}>✕</Text>
+                <Text style={reactionStyles.btnText}>😊</Text>
               </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={reactionStyles.btn}
-              onPress={() => setShowReactionPicker(true)}
-            >
-              <Text style={reactionStyles.btnText}>😊</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+            )}
+          </View>
+        );
+      })()}
+
     </View>
   );
 }
@@ -1002,24 +1089,10 @@ const tableStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  perspectiveLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-  },
   youLabel: {
     fontSize: 9,
     fontWeight: '700',
     marginTop: 2,
-  },
-  pileLabel: {
-    color: THEME.textMuted,
-    fontSize: 9,
-    textAlign: 'center',
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginTop: 4,
   },
   messageBox: {
     backgroundColor: 'rgba(13,27,42,0.82)',

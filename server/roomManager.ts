@@ -7,13 +7,14 @@ function generateId(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-export function createRoom(maxPlayers: 2 | 3 | 4): Room {
+export function createRoom(maxPlayers: 2 | 3 | 4, turnDuration: number = 30): Room {
   const room: Room = {
     id: generateId(),
     players: [],
     state: null,
     maxPlayers,
     status: 'waiting',
+    turnDuration,
   };
   rooms.set(room.id, room);
   return room;
@@ -24,7 +25,8 @@ export function joinRoom(
   socketId: string,
   playerName: string,
   userId?: string,
-  preferredColourHex?: string
+  preferredColourHex?: string,
+  avatarId?: string
 ): Room | Error {
   const room = rooms.get(roomId);
   if (!room) return new Error(`Room ${roomId} not found`);
@@ -41,7 +43,7 @@ export function joinRoom(
       .filter(Boolean);
     colourHex = assignRandomColour(takenColourIds).hex;
   }
-  const player: RoomPlayer = { socketId, playerId, name: playerName, colourHex, userId };
+  const player: RoomPlayer = { socketId, playerId, name: playerName, colourHex, userId, avatarId };
   const updated: Room = { ...room, players: [...room.players, player] };
   rooms.set(roomId, updated);
   return updated;

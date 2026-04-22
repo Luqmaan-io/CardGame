@@ -1,5 +1,5 @@
 import { Card, GameState, Player, Suit } from './types';
-import { isPowerCard } from './types';
+import { isPowerCard, isBlackJack } from './types';
 import { isValidCombo } from './validation';
 import { canWinNextTurn } from './validation';
 import { applyPowerCardEffect } from './effects';
@@ -107,6 +107,47 @@ export function drawCard(count: number, state: GameState): GameState {
 }
 
 /**
+ * When a combo contains multiple DIFFERENT power card types, only the last
+ * power card's effect applies. Same-type stacking (two 2s, two Kings, etc.)
+ * is unaffected — this only resolves conflicts between different types.
+ */
+export function resolveConflictingEffects(state: GameState, playedCards: Card[]): GameState {
+  const powerCards = playedCards.filter(isPowerCard);
+  if (powerCards.length <= 1) return state;
+
+  const lastPowerCard = powerCards[powerCards.length - 1]!;
+  const otherPowerRanks = new Set(powerCards.slice(0, -1).map((c) => c.rank));
+
+  // Only resolve if there are genuinely different power card types involved
+  const hasDifferentTypes = otherPowerRanks.size > 0 && !otherPowerRanks.has(lastPowerCard.rank)
+    || (otherPowerRanks.size > 1);
+
+  if (!hasDifferentTypes) return state;
+
+  // Last power card is Ace — clear any pickup from earlier 2s or black Jacks
+  if (lastPowerCard.rank === 'A') {
+    return { ...state, pendingPickup: 0, pendingPickupType: null };
+  }
+
+  // Last power card is 2 or black Jack — clear any active suit from earlier Ace
+  if (lastPowerCard.rank === '2' || isBlackJack(lastPowerCard)) {
+    return { ...state, activeSuit: null };
+  }
+
+  // Last power card is King — clear any active suit from earlier Ace
+  if (lastPowerCard.rank === 'K') {
+    return { ...state, activeSuit: null };
+  }
+
+  // Last power card is 8 — clear any pickup from earlier 2s or black Jacks
+  if (lastPowerCard.rank === '8') {
+    return { ...state, pendingPickup: 0, pendingPickupType: null };
+  }
+
+  return state;
+}
+
+/**
  * Apply a valid combo play for the current player.
  * Does NOT advance the turn — call advanceTurn() after this.
  * Sets currentPlayerHasActed: true.
@@ -159,6 +200,9 @@ export function applyPlay(
       newState = applyPowerCardEffect(card, declaredSuit, newState);
     }
   }
+
+  // Resolve conflicting effects when different power card types appear in the same combo
+  newState = resolveConflictingEffects(newState, cards);
 
   // Check win condition
   const lastCard = cards[cards.length - 1]!;

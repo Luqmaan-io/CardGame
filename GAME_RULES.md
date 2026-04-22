@@ -58,6 +58,8 @@ A player may play **multiple cards in a single turn** forming a continuous ascen
 - `3♦ 4♦ 4♠ 5♠` — ascending, suit change via matching rank
 - `9♣ 8♣ 7♣ 7♥ 6♥` — descending, suit change via matching rank
 - `Q♥ 3♥ 4♥ 4♠` — Queen covered by 3♥, combo continues from there
+
+When multiple different power cards are played in the same combo, only the final power card's effect applies — earlier power card effects are overridden. Exception: the same power card type played multiple times in one combo still stacks normally (e.g. two 2s = pick up 4, two Kings = two reversals).
  
 ---
  
@@ -89,10 +91,11 @@ A player may play **multiple cards in a single turn** forming a continuous ascen
 - **Red Jacks played outside a black Jack penalty** are treated as normal rank/suit cards (no special effect).
  
 ### Queen — Must Cover
-- **Effect:** A Queen **must** be immediately followed by another card of the **same suit** as the Queen, played in the same turn.
+- **Effect:** A Queen must be covered by either another Queen of any suit OR a card of the same suit as the Queen. Multiple Queens can be stacked — each new Queen satisfies the previous Queen's cover requirement. The final Queen in a chain must be covered by a same-suit non-Queen card.
 - **If a player cannot cover:** They cannot legally play the Queen. They must play a different card or draw.
 - **Cover card continues combo:** The cover card can extend into a further combo as normal.
 - **Cover card can be a power card:** e.g. `Q♥ → 2♥` is valid; the 2♥ penalty then applies to the next player.
+- **Example stacking:** `Q♠ → Q♥ → K♥` is valid: Q♥ covers Q♠, K♥ covers Q♥. The cover suit must always match the most recent Queen's suit.
  
 ### King — Reverse Direction
 - **Effect:** Reverses the direction of play (clockwise ↔ anticlockwise).

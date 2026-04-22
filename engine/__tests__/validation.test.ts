@@ -121,29 +121,30 @@ describe('isValidPlay — Queen cover requirement', () => {
     expect(isValidPlay({ rank: 'Q', suit: 'hearts' }, state)).toBe(true);
   });
 
-  it('rejects Queen when player has no same-suit cover card (Edge Case 3)', () => {
+  it('rejects Queen when player has no same-suit cover and no other Queen (Edge Case 3)', () => {
     const hand: Card[] = [
       { rank: 'Q', suit: 'hearts' },
-      { rank: '5', suit: 'spades' }, // different suit
+      { rank: '5', suit: 'spades' }, // different suit, not a Queen
     ];
     const state = makeState({
       discard: [{ rank: '3', suit: 'hearts' }],
       players: [makePlayer('p1', hand)],
     });
-    expect(isValidPlay({ rank: 'Q', suit: 'hearts' }, state)).toBe(false);
+    // Pass same reference as in hand — correctly excludes the played card
+    expect(isValidPlay(hand[0]!, state)).toBe(false);
   });
 
-  it('rejects Queen when only other same-suit card is another Queen', () => {
+  it('allows Queen when only other card is another Queen (stacking rule)', () => {
     const hand: Card[] = [
       { rank: 'Q', suit: 'hearts' },
-      { rank: 'Q', suit: 'hearts' }, // same suit but also a Queen
+      { rank: 'Q', suit: 'hearts' }, // another Queen — valid cover under stacking rules
     ];
     const state = makeState({
       discard: [{ rank: '3', suit: 'hearts' }],
       players: [makePlayer('p1', hand)],
     });
-    // The second Queen is also a Queen, so it's excluded by the "c.rank !== 'Q'" check
-    expect(isValidPlay({ rank: 'Q', suit: 'hearts' }, state)).toBe(false);
+    // hand[1] is another Queen → valid cover under new stacking rule
+    expect(isValidPlay(hand[0]!, state)).toBe(true);
   });
 });
 
@@ -250,6 +251,100 @@ describe('isValidCombo — Queen mid-combo', () => {
     const combo: Card[] = [
       { rank: 'Q', suit: 'hearts' },
       { rank: '2', suit: 'hearts' },
+    ];
+    expect(isValidCombo(combo, state)).toBe(true);
+  });
+});
+
+// ─── isValidCombo — Queen stacking ───────────────────────────────────────────
+
+describe('isValidCombo — Queen stacking', () => {
+  function makeQueenState(hand: Card[]): ReturnType<typeof makeState> {
+    return makeState({
+      discard: [{ rank: 'Q', suit: 'clubs' }], // Q♠ matches rank
+      players: [makePlayer('p1', hand)],
+    });
+  }
+
+  it('[Q♠, Q♥, K♥] — Queen covers Queen, then same-suit cover: valid', () => {
+    const hand: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'K', suit: 'hearts' },
+    ];
+    const state = makeQueenState(hand);
+    const combo: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'K', suit: 'hearts' },
+    ];
+    expect(isValidCombo(combo, state)).toBe(true);
+  });
+
+  it('[Q♠, Q♥, K♠] — cover must match last Queen suit (hearts), K♠ is spades: invalid', () => {
+    const hand: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'K', suit: 'spades' },
+    ];
+    const state = makeQueenState(hand);
+    const combo: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'K', suit: 'spades' },
+    ];
+    expect(isValidCombo(combo, state)).toBe(false);
+  });
+
+  it('[Q♠, Q♥, Q♣, 3♣] — three Queens stacked, covered by clubs: valid', () => {
+    const hand: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'Q', suit: 'clubs' },
+      { rank: '3', suit: 'clubs' },
+    ];
+    const state = makeQueenState(hand);
+    const combo: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'Q', suit: 'clubs' },
+      { rank: '3', suit: 'clubs' },
+    ];
+    expect(isValidCombo(combo, state)).toBe(true);
+  });
+
+  it('[Q♠, Q♥, Q♣, 3♥] — cover must match last Queen (Q♣ suit = clubs), 3♥ is hearts: invalid', () => {
+    const hand: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'Q', suit: 'clubs' },
+      { rank: '3', suit: 'hearts' },
+    ];
+    const state = makeQueenState(hand);
+    const combo: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'Q', suit: 'clubs' },
+      { rank: '3', suit: 'hearts' },
+    ];
+    expect(isValidCombo(combo, state)).toBe(false);
+  });
+
+  it('[Q♠, Q♥, K♥, A♥, A♣] — original bug combo: valid', () => {
+    const hand: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'K', suit: 'hearts' },
+      { rank: 'A', suit: 'hearts' },
+      { rank: 'A', suit: 'clubs' },
+    ];
+    const state = makeQueenState(hand);
+    const combo: Card[] = [
+      { rank: 'Q', suit: 'spades' },
+      { rank: 'Q', suit: 'hearts' },
+      { rank: 'K', suit: 'hearts' },
+      { rank: 'A', suit: 'hearts' },
+      { rank: 'A', suit: 'clubs' },
     ];
     expect(isValidCombo(combo, state)).toBe(true);
   });

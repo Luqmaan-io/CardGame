@@ -27,7 +27,10 @@ function clearTurnTimer(roomId: string): void {
 
 function startTurnTimer(roomId: string, io: Server): void {
   clearTurnTimer(roomId);
-  const timer = setTimeout(() => handleTimeout(roomId, io), 30_000);
+  const room = getRoom(roomId);
+  const duration = room?.turnDuration ?? 30;
+  if (duration === 0) return;  // no limit — don't start timer
+  const timer = setTimeout(() => handleTimeout(roomId, io), duration * 1000);
   roomTimers.set(roomId, timer);
 }
 
@@ -78,6 +81,7 @@ function initGameState(room: Room): GameState {
     hand: hands[i] ?? [],
     isHuman: true,
     colourHex: p.colourHex,
+    avatarId: p.avatarId,
   }));
 
   const startCard = remaining[0]!;
@@ -108,30 +112,31 @@ function getPlayerName(playerId: string, room: Room): string {
 }
 
 export function registerGameHandlers(io: Server, socket: Socket): void {
-  // room:create — { maxPlayers: 2 | 3 | 4, name, userId?, colourHex? }
-  socket.on('room:create', (data: { maxPlayers: 2 | 3 | 4; name: string; userId?: string; colourHex?: string }) => {
+  // room:create — { maxPlayers: 2 | 3 | 4, name, userId?, colourHex?, avatarId?, turnDuration? }
+  socket.on('room:create', (data: { maxPlayers: 2 | 3 | 4; name: string; userId?: string; colourHex?: string; avatarId?: string; turnDuration?: number }) => {
     const maxPlayers = data.maxPlayers ?? 4;
     const name = data.name ?? 'Player';
-    const room = createRoom(maxPlayers);
-    const joined = joinRoom(room.id, socket.id, name, data.userId, data.colourHex);
+    const turnDuration = data.turnDuration ?? 30;
+    const room = createRoom(maxPlayers, turnDuration);
+    const joined = joinRoom(room.id, socket.id, name, data.userId, data.colourHex, data.avatarId);
     if (joined instanceof Error) {
       socket.emit('game:error', { message: joined.message });
       return;
     }
     socket.join(room.id);
-    socket.emit('room:joined', { roomId: joined.id, room: joined });
+    socket.emit('room:joined', { roomId: joined.id, room: { ...joined, turnDuration: joined.turnDuration } });
   });
 
-  // room:join — { roomId, name, userId?, colourHex? }
-  socket.on('room:join', (data: { roomId: string; name: string; userId?: string; colourHex?: string }) => {
-    const result = joinRoom(data.roomId, socket.id, data.name, data.userId, data.colourHex);
+  // room:join — { roomId, name, userId?, colourHex?, avatarId? }
+  socket.on('room:join', (data: { roomId: string; name: string; userId?: string; colourHex?: string; avatarId?: string }) => {
+    const result = joinRoom(data.roomId, socket.id, data.name, data.userId, data.colourHex, data.avatarId);
     if (result instanceof Error) {
       socket.emit('game:error', { message: result.message });
       return;
     }
     socket.join(data.roomId);
-    socket.emit('room:joined', { roomId: result.id, room: result });
-    socket.to(data.roomId).emit('room:updated', { room: result });
+    socket.emit('room:joined', { roomId: result.id, room: { ...result, turnDuration: result.turnDuration } });
+    socket.to(data.roomId).emit('room:updated', { room: { ...result, turnDuration: result.turnDuration } });
   });
 
   // room:start — host triggers game start
@@ -360,6 +365,36 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       socket.emit('game:state', { state: updatedRoom.state });
     }
     socket.emit('room:rejoined', { roomId });
+  });
+
+  // room:leave — voluntary leave (in-game or waiting room)
+  socket.on('room:leave', ({ roomId, playerId }: { roomId: string; playerId: string }) => {
+    const room = getRoom(roomId);
+    if (!room) return;
+
+    const leavingPlayer = room.players.find((p) => p.playerId === playerId);
+    const playerName = leavingPlayer?.name ?? playerId.slice(0, 8);
+
+    if (room.status !== 'playing' || !room.state) {
+      // Waiting room — remove and notify
+      const updated = leaveRoom(roomId, socket.id);
+      if (updated.players.length === 0) {
+        clearTurnTimer(roomId);
+      } else {
+        io.to(roomId).emit('room:updated', { room: updated });
+      }
+    } else {
+      // Game in progress — notify remaining players
+      io.to(roomId).emit('game:player-left', { playerId, playerName });
+    }
+
+    socket.leave(roomId);
+  });
+
+  // game:reaction — { roomId, playerId, reactionId }
+  // Broadcasts the reaction emoji to all players in the room.
+  socket.on('game:reaction', (data: { roomId: string; playerId: string; reactionId: string }) => {
+    io.to(data.roomId).emit('game:reaction', { playerId: data.playerId, reactionId: data.reactionId });
   });
 
   // disconnect

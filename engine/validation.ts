@@ -43,12 +43,12 @@ export function isValidPlay(card: Card, state: GameState): boolean {
   // Ace is always valid in a normal turn — it overrides suit/rank matching
   if (card.rank === 'A') return true;
 
-  // Queen: player must also hold a same-suit cover card (can't be the Queen itself)
+  // Queen: player must hold a same-suit non-Queen card OR another Queen of any suit
   if (card.rank === 'Q') {
     const currentPlayer = state.players[state.currentPlayerIndex];
     if (!currentPlayer) return false;
     const hasCover = currentPlayer.hand.some(
-      (c) => c.suit === card.suit && c !== card && c.rank !== 'Q'
+      (c) => c !== card && (c.rank === 'Q' || c.suit === card.suit)
     );
     if (!hasCover) return false;
   }
@@ -66,59 +66,103 @@ export function isValidPlay(card: Card, state: GameState): boolean {
 }
 
 /**
- * Returns true if the player has at least one valid combo that would empty
- * their hand entirely AND whose last card is not a power card.
+ * Returns true if the player's hand contains a combo that empties it entirely
+ * and ends on a non-power card. The current top discard card is deliberately
+ * ignored — by the time it is this player's next turn, other players will have
+ * played and the top card will be different.
  *
- * Queen edge case: if a Queen appears in the winning combo, the card immediately
- * after it in the combo must be same-suit and NOT a power card.
+ * Queen rule: each Queen in the combo must be immediately followed by a card
+ * of the same suit OR another Queen.
  */
 export function canWinNextTurn(playerId: string, state: GameState): boolean {
   const player = state.players.find((p) => p.id === playerId);
   if (!player || player.hand.length === 0) return false;
+  return _hasWinningCombo(player.hand);
+}
 
-  const hand = player.hand;
-  const targetLength = hand.length;
-
-  // Build the player state as-if it's their turn (same state, just checking for combos)
-  const checkState: GameState = { ...state, currentPlayerIndex: state.players.indexOf(player) };
-
-  // DFS to find a combo that empties the hand and ends on a non-power card
-  function dfs(current: Card[], remaining: Card[]): boolean {
-    // Check if this combo empties the hand and ends on a non-power card
-    if (current.length === targetLength) {
-      const lastCard = current[current.length - 1]!;
-      if (isPowerCard(lastCard)) return false;
-      // Queen edge case: verify no Queen in combo has a power-card cover
-      // isValidCombo already enforces Queen coverage, so we just need to ensure
-      // no power card immediately follows a Queen in the combo
-      for (let i = 0; i < current.length - 1; i++) {
-        if (current[i]!.rank === 'Q') {
-          const cover = current[i + 1]!;
-          if (isPowerCard(cover)) return false;
-        }
-      }
-      return true;
-    }
-
-    for (let i = 0; i < remaining.length; i++) {
-      const candidate = [...current, remaining[i]!];
-      if (isValidCombo(candidate, checkState)) {
-        const next = remaining.filter((_, idx) => idx !== i);
-        if (dfs(candidate, next)) return true;
-      }
-    }
-    return false;
+function _hasWinningCombo(hand: Card[]): boolean {
+  for (let startIdx = 0; startIdx < hand.length; startIdx++) {
+    const remaining = [...hand];
+    const first = remaining.splice(startIdx, 1)[0]!;
+    if (_findWinningSequence([first], remaining, null)) return true;
   }
-
-  // Try starting from each card that is valid as a first play
-  for (let i = 0; i < hand.length; i++) {
-    if (isValidPlay(hand[i]!, checkState)) {
-      const remaining = hand.filter((_, idx) => idx !== i);
-      if (dfs([hand[i]!], remaining)) return true;
-    }
-  }
-
   return false;
+}
+
+function _findWinningSequence(
+  current: Card[],
+  remaining: Card[],
+  direction: 'asc' | 'desc' | null
+): boolean {
+  if (remaining.length === 0) {
+    const lastCard = current[current.length - 1]!;
+    if (isPowerCard(lastCard)) return false;
+    return _validateQueenCovers(current);
+  }
+
+  const lastCard = current[current.length - 1]!;
+  const pendingQueenSuit = _getPendingQueenSuit(current);
+
+  for (let i = 0; i < remaining.length; i++) {
+    const nextCard = remaining[i]!;
+    if (!_canFollow(lastCard, nextCard, pendingQueenSuit, direction)) continue;
+
+    // Update direction when a same-suit rank step is made
+    let newDirection = direction;
+    if (lastCard.suit === nextCard.suit && lastCard.rank !== nextCard.rank) {
+      const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+      const diff = ranks.indexOf(nextCard.rank) - ranks.indexOf(lastCard.rank);
+      newDirection = diff > 0 ? 'asc' : 'desc';
+    }
+
+    const newRemaining = [...remaining];
+    newRemaining.splice(i, 1);
+    if (_findWinningSequence([...current, nextCard], newRemaining, newDirection)) return true;
+  }
+  return false;
+}
+
+function _canFollow(
+  prev: Card,
+  next: Card,
+  pendingQueenSuit: string | null,
+  currentDirection: 'asc' | 'desc' | null
+): boolean {
+  if (pendingQueenSuit !== null) {
+    return next.suit === pendingQueenSuit || next.rank === 'Q';
+  }
+  // Same rank — valid suit change, no direction constraint
+  if (prev.rank === next.rank) return true;
+  // Same suit — must be adjacent and direction-consistent
+  if (prev.suit === next.suit) {
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const diff = ranks.indexOf(next.rank) - ranks.indexOf(prev.rank);
+    if (Math.abs(diff) !== 1) return false;
+    const moveDir = diff > 0 ? 'asc' : 'desc';
+    if (currentDirection !== null && moveDir !== currentDirection) return false;
+    return true;
+  }
+  return false;
+}
+
+function _getPendingQueenSuit(combo: Card[]): string | null {
+  for (let i = combo.length - 1; i >= 0; i--) {
+    if (combo[i]!.rank === 'Q') {
+      if (i === combo.length - 1) return combo[i]!.suit;
+      return null;
+    }
+  }
+  return null;
+}
+
+function _validateQueenCovers(combo: Card[]): boolean {
+  for (let i = 0; i < combo.length; i++) {
+    if (combo[i]!.rank !== 'Q') continue;
+    if (i === combo.length - 1) return false;
+    const next = combo[i + 1]!;
+    if (next.suit !== combo[i]!.suit && next.rank !== 'Q') return false;
+  }
+  return true;
 }
 
 export function isValidCombo(cards: Card[], state: GameState): boolean {
@@ -126,7 +170,10 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
 
   // Single card — delegate to isValidPlay
   if (cards.length === 1) {
-    return isValidPlay(cards[0]!, state);
+    if (!isValidPlay(cards[0]!, state)) return false;
+    // A single Queen is never a complete combo — it must be followed by a cover card
+    if (cards[0]!.rank === 'Q') return false;
+    return true;
   }
 
   // First card must be valid to play
@@ -142,13 +189,11 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
     const prev = cards[i - 1]!;
     const curr = cards[i]!;
 
-    // Queen cover rule: the card immediately after a Queen must be the same suit
+    // Queen cover rule: another Queen of any suit OR a same-suit card covers the pending Queen
     if (needsCoverSuit !== null) {
-      if (curr.suit !== needsCoverSuit) return false;
+      if (curr.rank !== 'Q' && curr.suit !== needsCoverSuit) return false;
       needsCoverSuit = null;
-      // After the cover card, direction can continue — no rank adjacency needed here
-      // (the Queen breaks the run; the cover restarts it)
-      // Reset direction since the cover card may start a new run direction
+      // After the cover, direction resets — the cover card starts a new run
       direction = null;
       if (curr.rank === 'Q') {
         needsCoverSuit = curr.suit;
@@ -172,11 +217,16 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
     const currIdx = rankIndex(curr.rank);
     const diff = currIdx - prevIdx;
 
-    if (diff === 1) {
+    // K→A is a valid ascending step (same suit required, already checked above)
+    // A→K is a valid descending step (same suit required, already checked above)
+    const wrapsAsc = prev.rank === 'K' && curr.rank === 'A';
+    const wrapsDesc = prev.rank === 'A' && curr.rank === 'K';
+
+    if (diff === 1 || wrapsAsc) {
       // Ascending step
       if (direction === 'desc') return false;
       direction = 'asc';
-    } else if (diff === -1) {
+    } else if (diff === -1 || wrapsDesc) {
       // Descending step
       if (direction === 'asc') return false;
       direction = 'desc';

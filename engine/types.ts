@@ -11,6 +11,7 @@ export interface Player {
   hand: Card[];
   isHuman: boolean;
   colourHex?: string;
+  sceneId?: string;  // table scene, defaults to 'midnight_rain'
 }
 
 export type Direction = 'clockwise' | 'anticlockwise';

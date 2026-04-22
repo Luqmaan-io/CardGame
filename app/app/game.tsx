@@ -107,6 +107,7 @@ export default function GameScreen() {
     humanApplyTimeout,
     adjustTurnStartedAt,
     lastAIPlayCardsRef,
+    localGameStateRef,
   } = useLocalGame();
 
   // Pick active game data based on mode
@@ -134,6 +135,13 @@ export default function GameScreen() {
   const discardPileRef = useRef<View>(null);
   const humanHandRef = useRef<View>(null);
   const opponentRefs = useRef<Record<string, View | null>>({});
+
+  // ── Latest game state ref — always current, never a stale closure ────────
+  // Used by declaration handlers so they never read pre-play React state.
+  const gameStateRef = useRef<GameState | null>(null);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   // ── Flashing player (timeout animation) ──────────────────────────────────
   const [flashingPlayerId, setFlashingPlayerId] = useState<string | null>(null);
@@ -225,8 +233,9 @@ export default function GameScreen() {
   }
 
   function startOnCardsWindow() {
-    // Guard: only open if still my turn and acted
-    const state = isLocalMode ? localGameState : onlineGameState;
+    // Always read from refs — never from the React state closure, which may be
+    // stale if React hasn't re-rendered yet when this fires (e.g. 420ms setTimeout).
+    const state = isLocalMode ? localGameStateRef.current : gameStateRef.current;
     if (!state) return;
     const current = state.players[state.currentPlayerIndex];
     const isMine = current?.id === (isLocalMode ? localMyPlayerId : onlineMyPlayerId);
@@ -1086,11 +1095,17 @@ export default function GameScreen() {
   }
 
   function handleDeclareOnCards() {
+    // Read the CURRENT state at moment of tap — never a stale closure.
+    // Local: stateRef inside the hook is updated synchronously in humanPlay.
+    // Online: server uses room.state directly; ref used here only for guard checks.
+    const currentState = isLocalMode ? localGameStateRef.current : gameStateRef.current;
+    if (!currentState) return;
+
     closeOnCardsWindow();
     playSound('on_cards');
     haptic('success');
     if (isLocalMode) {
-      const isValid = humanDeclareOnCards(); // advances turn internally
+      const isValid = humanDeclareOnCards(); // reads localGameStateRef.current internally
       if (isValid) {
         gameStatsRef.current.correctOnCardsCount++;
         const humanName = localPlayerNames[localMyPlayerId] ?? 'You';

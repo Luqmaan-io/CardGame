@@ -348,5 +348,8 @@ export function useLocalGame() {
     humanApplyTimeout,
     adjustTurnStartedAt,
     lastAIPlayCardsRef,
+    // Ref always points to the latest state — use this for declarations so
+    // the validation never reads a stale React-state closure value.
+    localGameStateRef: stateRef,
   };
 }

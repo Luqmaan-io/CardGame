@@ -1108,6 +1108,25 @@ export default function GameScreen() {
     ? localTurnDurationRef.current
     : (roomInfo?.turnDuration ?? 30);
 
+  function handleLeaveGame() {
+    try {
+      // Online — notify server before resetting state
+      if (!isLocalMode) {
+        const { socket: s, roomId: rId, myPlayerId: pid } = useGameStore.getState();
+        s?.emit('room:leave', { roomId: rId, playerId: pid });
+        useGameStore.getState().reset();
+      }
+      // Clear any open timers/windows
+      closeOnCardsWindow();
+      cancelAutoDraw();
+      // Navigate home — use push so the history entry always exists
+      router.push('/');
+    } catch {
+      // Force navigate even if cleanup threw
+      router.push('/');
+    }
+  }
+
   function handleReact(reactionId: string) {
     const emoji = REACTION_MAP[reactionId] ?? '🔥';
     const id = Date.now().toString();
@@ -1335,14 +1354,7 @@ export default function GameScreen() {
                     {
                       text: 'Leave',
                       style: 'destructive',
-                      onPress: () => {
-                        if (!isLocalMode) {
-                          const { socket: s, roomId: rId, myPlayerId: pid } = useGameStore.getState();
-                          s?.emit('room:leave', { roomId: rId, playerId: pid });
-                          useGameStore.getState().reset();
-                        }
-                        router.replace('/');
-                      },
+                      onPress: handleLeaveGame,
                     },
                   ]
                 );

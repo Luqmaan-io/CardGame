@@ -13,7 +13,6 @@ import { Hand } from './Hand';
 import { DiscardPile } from './DiscardPile';
 import { TurnTimer } from './TurnTimer';
 import Avatar from './Avatar';
-import { SceneRenderer } from './scenes/SceneRenderer';
 import { THEME } from '../utils/theme';
 import type { GameState, Card as CardType } from '../../engine/types';
 
@@ -547,22 +546,6 @@ export function RoundTable({
 }: RoundTableProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
-  // ── timerPercent for scene renderer ─────────────────────────────────────────
-  const [timerPercent, setTimerPercent] = useState(100);
-  useEffect(() => {
-    if (!timerStartedAt || turnDuration === 0) {
-      setTimerPercent(100);
-      return;
-    }
-    const update = () => {
-      const elapsed = Date.now() - timerStartedAt;
-      setTimerPercent(Math.max(0, Math.min(100, 100 - (elapsed / (turnDuration * 1000)) * 100)));
-    };
-    update();
-    const id = setInterval(update, 500);
-    return () => clearInterval(id);
-  }, [timerStartedAt, turnDuration]);
-
   // ── Reaction picker ──────────────────────────────────────────────────────────
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
@@ -743,8 +726,8 @@ export function RoundTable({
             ))}
           </View>
 
-          {/* ── Scene zones — one per player, rotated to face them ───────── */}
-          {players.map((player, idx) => {
+          {/* ── Scene zones — disabled, Three.js version coming ────────── */}
+          {/* players.map((player, idx) => {
             const angle = playerAngles[idx] ?? 0;
             const pos = getTablePos(angle, TABLE_RADIUS * 0.55);
             const sceneId = (player as { sceneId?: string }).sceneId ?? 'midnight_rain';
@@ -776,7 +759,7 @@ export function RoundTable({
                 />
               </View>
             );
-          })}
+          }) */}
 
           {/* ── Message — upper-left of felt, above piles ────────────────── */}
           {!!message && (

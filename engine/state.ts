@@ -32,6 +32,57 @@ export function checkWinCondition(playerId: string, state: GameState): boolean {
 }
 
 /**
+ * Called after a player empties their hand (non-power card finish).
+ * Records their placement, removes them from active players, and either
+ * ends the game (≤1 player remaining) or continues play.
+ */
+export function checkPlayerFinished(playerId: string, state: GameState): GameState {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.hand.length > 0) return state;
+
+  const place = state.placements.length + 1;
+  const newPlacements = [...state.placements, { playerId, place }];
+  const remainingPlayers = state.players.filter((p) => p.id !== playerId);
+  const scoredState = awardWin(playerId, state);
+
+  // Only 1 player left — award last place automatically, game over
+  if (remainingPlayers.length === 1) {
+    const lastPlace = place + 1;
+    const finalPlacements = [...newPlacements, { playerId: remainingPlayers[0]!.id, place: lastPlace }];
+    return {
+      ...scoredState,
+      placements: finalPlacements,
+      players: [],
+      phase: 'game-over',
+      winnerId: newPlacements[0]!.playerId,
+    };
+  }
+
+  // No players left at all
+  if (remainingPlayers.length === 0) {
+    return {
+      ...scoredState,
+      placements: newPlacements,
+      players: [],
+      phase: 'game-over',
+      winnerId: newPlacements[0]!.playerId,
+    };
+  }
+
+  // Game continues — remove finished player, adjust currentPlayerIndex
+  const newCurrentIndex =
+    state.currentPlayerIndex >= remainingPlayers.length ? 0 : state.currentPlayerIndex;
+  return {
+    ...scoredState,
+    placements: newPlacements,
+    players: remainingPlayers,
+    winnerId: newPlacements[0]!.playerId,
+    currentPlayerIndex: newCurrentIndex,
+    phase: 'play',
+  };
+}
+
+/**
  * Advance the turn to the next player.
  * Resets skipsRemaining, sets phase to 'play', clears currentPlayerHasActed,
  * and clears onCardsDeclarations for the incoming player.
@@ -210,14 +261,11 @@ export function applyPlay(
 
   if (handEmpty) {
     if (!isPowerCard(lastCard)) {
-      // Win — award session point and end game
-      const scoredState = awardWin(currentPlayer.id, newState);
-      return {
-        ...scoredState,
-        phase: 'game-over',
-        winnerId: currentPlayer.id,
+      // Player finished — record placement, may continue if others remain
+      return checkPlayerFinished(currentPlayer.id, {
+        ...newState,
         currentPlayerHasActed: true,
-      };
+      });
     } else {
       // Power card finish — draw 1 card for current player, stay on their turn
       let drawState = { ...newState, currentPlayerIndex: state.currentPlayerIndex };

@@ -104,6 +104,7 @@ function initGameState(room: Room): GameState {
     sessionScores: {},
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
+    placements: [],
   };
 }
 
@@ -384,8 +385,42 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
         io.to(roomId).emit('room:updated', { room: updated });
       }
     } else {
-      // Game in progress — notify remaining players
-      io.to(roomId).emit('game:player-left', { playerId, playerName });
+      // Game in progress — shuffle leaving player's hand back into draw pile
+      const gameState = room.state;
+      const leavingGamePlayer = gameState.players.find((p) => p.id === playerId);
+
+      let updatedState = gameState;
+      if (leavingGamePlayer && leavingGamePlayer.hand.length > 0) {
+        const newDeck = shuffleDeck([...gameState.deck, ...leavingGamePlayer.hand]);
+        updatedState = {
+          ...gameState,
+          deck: newDeck,
+          players: gameState.players.filter((p) => p.id !== playerId),
+        };
+      } else {
+        updatedState = {
+          ...gameState,
+          players: gameState.players.filter((p) => p.id !== playerId),
+        };
+      }
+
+      if (updatedState.players.length === 1) {
+        // Last player standing wins
+        const winner = updatedState.players[0]!;
+        const lastPlace = updatedState.placements.length + 1;
+        const finalPlacements = [...updatedState.placements, { playerId: winner.id, place: lastPlace }];
+        updatedState = { ...updatedState, phase: 'game-over', winnerId: winner.id, placements: finalPlacements };
+        updateRoom({ ...room, state: updatedState });
+        io.to(roomId).emit('game:state', { state: updatedState });
+        io.to(roomId).emit('game:over', { winnerId: winner.id, placements: updatedState.placements });
+      } else if (updatedState.players.length === 0) {
+        // No players left — remove the room via leaveRoom (clears from roomManager's map)
+        leaveRoom(roomId, socket.id);
+      } else {
+        updateRoom({ ...room, state: updatedState });
+        io.to(roomId).emit('game:state', { state: updatedState });
+        io.to(roomId).emit('game:player-left', { playerId, playerName });
+      }
     }
 
     socket.leave(roomId);

@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 export type GameResult = {
   userId: string
   isGuest: boolean
-  won: boolean
+  placement: number  // 1 = 1st place (win), 2+ = loss
   turnsPlayed: number
   maxCardsHeld: number
   cardsDrawn: number
@@ -24,6 +24,8 @@ export type GameResult = {
 export async function recordGameStats(result: GameResult): Promise<void> {
   if (result.isGuest) return  // guests don't get stats recorded
 
+  const won = result.placement === 1
+
   const { data: current } = await supabase
     .from('player_stats')
     .select('*')
@@ -33,14 +35,14 @@ export async function recordGameStats(result: GameResult): Promise<void> {
   if (!current) return
 
   const newGamesPlayed = current.games_played + 1
-  const newGamesWon = current.games_won + (result.won ? 1 : 0)
+  const newGamesWon = current.games_won + (won ? 1 : 0)
   const newWinRate = Math.round((newGamesWon / newGamesPlayed) * 100) / 100
-  const newStreak = result.won ? current.current_streak + 1 : 0
+  const newStreak = won ? current.current_streak + 1 : 0
   const newLongestStreak = Math.max(current.longest_streak, newStreak)
 
   // Nemesis calculation — if lost to same opponent more than current nemesis
   let nemesisUpdate: Record<string, unknown> = {}
-  if (!result.won && result.opponentId) {
+  if (!won && result.opponentId) {
     const newLossCount = (current.nemesis_id === result.opponentId
       ? current.nemesis_loss_count
       : 0) + 1
@@ -55,7 +57,7 @@ export async function recordGameStats(result: GameResult): Promise<void> {
 
   // Victim calculation — if beat same opponent more than current victim
   let victimUpdate: Record<string, unknown> = {}
-  if (result.won && result.opponentId) {
+  if (won && result.opponentId) {
     const newWinCount = (current.victim_id === result.opponentId
       ? current.victim_win_count
       : 0) + 1
@@ -88,13 +90,13 @@ export async function recordGameStats(result: GameResult): Promise<void> {
       times_kicked_timeout: result.wasKicked
         ? current.times_kicked_timeout + 1
         : current.times_kicked_timeout,
-      fastest_win_turns: result.won
+      fastest_win_turns: won
         ? (current.fastest_win_turns
           ? Math.min(current.fastest_win_turns, result.turnsPlayed)
           : result.turnsPlayed)
         : current.fastest_win_turns,
       longest_game_turns: Math.max(current.longest_game_turns, result.turnsPlayed),
-      favourite_suit: result.suitWonWith ?? current.favourite_suit,
+      favourite_suit: (won && result.suitWonWith) ? result.suitWonWith : current.favourite_suit,
       ...nemesisUpdate,
       ...victimUpdate,
       updated_at: new Date().toISOString(),

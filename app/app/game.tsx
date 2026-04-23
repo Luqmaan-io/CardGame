@@ -747,21 +747,23 @@ export default function GameScreen() {
     if (!profile || isGuest) return;
     statsRecordedRef.current = true;
 
-    const won = gameState.winnerId === myPlayerId;
+    const myPlacement = gameState.placements.find((pl) => pl.playerId === myPlayerId)?.place
+      ?? gameState.placements.length + 1;
+    const won = myPlacement === 1;
     // Best-effort: find winning suit from last discard if we won
     const winCard = won ? gameState.discard[gameState.discard.length - 1] : undefined;
     if (winCard) gameStatsRef.current.lastSuitWonWith = winCard.suit;
 
-    // Find opponent (first non-me player)
-    const opponent = gameState.players.find((p) => p.id !== myPlayerId);
-    const opponentUsername = isLocalMode
-      ? localPlayerNames[opponent?.id ?? ''] ?? 'AI'
-      : undefined; // online: we don't have opponent userId easily, skip nemesis in v1
+    // Find opponent (first non-me player in placements)
+    const opponentPlacement = gameState.placements.find((pl) => pl.playerId !== myPlayerId);
+    const opponentUsername = isLocalMode && opponentPlacement
+      ? localPlayerNames[opponentPlacement.playerId] ?? 'AI'
+      : undefined; // online: skip nemesis in v1
 
     recordGameStats({
       userId: profile.id,
       isGuest: false,
-      won,
+      placement: myPlacement,
       turnsPlayed: gameStatsRef.current.turnsPlayed,
       maxCardsHeld: gameStatsRef.current.maxCardsHeld,
       cardsDrawn: gameStatsRef.current.cardsDrawn,

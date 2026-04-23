@@ -20,6 +20,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     sessionScores: {},
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
+    placements: [],
     ...overrides,
   };
 }
@@ -149,6 +150,7 @@ function makePlayState(hand: Card[], topDiscard: Card, overrides: Partial<GameSt
     sessionScores: { p1: 0, p2: 0 },
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
+    placements: [],
     ...overrides,
   };
 }

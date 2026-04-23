@@ -8,6 +8,7 @@ import {
   applyPlay,
   drawCard,
 } from '../state';
+import { shuffleDeck } from '../deck';
 import { Card, GameState, Player } from '../types';
 
 function makePlayer(id: string, hand: Card[], isHuman = false): Player {
@@ -40,6 +41,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     sessionScores: {},
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
+    placements: [],
     ...overrides,
   };
 }
@@ -347,5 +349,39 @@ describe('timerStartedAt resets on turn advance', () => {
     const state = makeState({ timerStartedAt: 1700000000000 });
     const result = applyTimeout(state);
     expect(result.timerStartedAt).toBeNull();
+  });
+});
+
+// ─── Voluntary leave — cards return to deck ───────────────────────────────────
+// The server's room:leave handler uses shuffleDeck to merge the leaving player's
+// hand back into the draw pile. This test verifies that logic directly.
+
+describe('voluntary leave — cards shuffled back into draw pile', () => {
+  it('leaving player cards are shuffled back into draw pile', () => {
+    const state = makeState({
+      deck: [{ rank: '6', suit: 'diamonds' }],
+      players: [
+        makePlayer('p1', [{ rank: '3', suit: 'hearts' }, { rank: '4', suit: 'hearts' }]),
+        makePlayer('p2', [{ rank: '5', suit: 'clubs' }]),
+      ],
+    });
+
+    // Simulate server room:leave logic
+    const leavingPlayer = state.players.find((p) => p.id === 'p1')!;
+    const newDeck = shuffleDeck([...state.deck, ...leavingPlayer.hand]);
+    const newState = {
+      ...state,
+      deck: newDeck,
+      players: state.players.filter((p) => p.id !== 'p1'),
+    };
+
+    // Deck grows by the 2 cards p1 held (was 1, now 3)
+    expect(newState.deck.length).toBe(state.deck.length + leavingPlayer.hand.length);
+    // p1 is removed
+    expect(newState.players.find((p) => p.id === 'p1')).toBeUndefined();
+    expect(newState.players).toHaveLength(1);
+    // p2 still has their own card
+    expect(newState.players[0]!.id).toBe('p2');
+    expect(newState.players[0]!.hand).toHaveLength(1);
   });
 });

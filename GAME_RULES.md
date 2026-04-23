@@ -127,8 +127,15 @@ When the draw pile is exhausted:
 ---
  
 ## Winning
- 
-The first player to legally empty their hand on a non-power card wins. The game ends immediately — no further turns are played.
+
+Players finish in order as they empty their hand on a non-power card.
+
+- The **first** player to empty their hand is awarded **1st place** and 1 win point. They are removed from the active player rotation and play continues.
+- The **second** player to empty their hand is awarded **2nd place**. They are removed and play continues.
+- The **third** player to empty their hand is awarded **3rd place**. They are removed and play continues.
+- The **last remaining** player is automatically awarded the final place (e.g. 4th in a 4-player game) when only one player remains — they do not need to empty their hand.
+
+Only **1st place** counts as a win for stats purposes. All other placements are losses.
  
 ---
  

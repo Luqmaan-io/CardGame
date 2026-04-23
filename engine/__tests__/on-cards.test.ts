@@ -27,6 +27,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     sessionScores: {},
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
+    placements: [],
     ...overrides,
   };
 }
@@ -336,10 +337,10 @@ describe('declareOnCards — declaration clears at start of next turn', () => {
       discard: [{ rank: '6', suit: 'hearts' }],
       players: [
         makePlayer('p1', [{ rank: '9', suit: 'hearts' }]),
-        makePlayer('p2', [{ rank: '6', suit: 'clubs' }]),
+        makePlayer('p2', [{ rank: '6', suit: 'clubs' }, { rank: '3', suit: 'clubs' }]),
       ],
     });
-    // p2 plays, then advance back to p1
+    // p2 plays (still has a card left), then advance back to p1
     const intermediate = applyPlay([{ rank: '6', suit: 'clubs' }], null, state);
     const result = advanceTurn(intermediate);
     expect(result.currentPlayerIndex).toBe(0); // back to p1

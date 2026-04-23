@@ -30,6 +30,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     sessionScores: {},
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
+    placements: [],
     ...overrides,
   };
 }

@@ -21,7 +21,7 @@ import { THEME } from '../utils/theme';
 interface Standing {
   id: string;
   name: string;
-  cardCount: number;
+  place: number;
   score: number;
   isWinner: boolean;
   colourHex?: string;
@@ -105,17 +105,35 @@ export default function ResultsScreen() {
 
   const winnerName = winnerId ? resolvePlayerName(winnerId) : 'Unknown';
 
-  const standings: Standing[] = gameState.players
-    .map((p) => ({
-      id: p.id,
-      name: resolvePlayerName(p.id),
-      cardCount: p.hand.length,
-      score: gameState.sessionScores[p.id] ?? 0,
-      isWinner: p.id === winnerId,
-      colourHex: p.colourHex,
-      avatarId: (p as { avatarId?: string }).avatarId,
-    }))
-    .sort((a, b) => a.cardCount - b.cardCount);
+  // Build standings from placements (already ordered by place)
+  const allPlayers = [
+    ...(gameState.placements.map((pl) => {
+      const player = (gameState as { allPlayers?: { id: string; colourHex?: string; avatarId?: string }[] })
+        .allPlayers?.find((p) => p.id === pl.playerId);
+      return {
+        id: pl.playerId,
+        name: resolvePlayerName(pl.playerId),
+        place: pl.place,
+        score: gameState.sessionScores[pl.playerId] ?? 0,
+        isWinner: pl.playerId === winnerId,
+        colourHex: player?.colourHex,
+        avatarId: player?.avatarId,
+      };
+    })),
+    // Fallback: any active players not yet in placements (shouldn't happen at game-over)
+    ...gameState.players
+      .filter((p) => !gameState.placements.find((pl) => pl.playerId === p.id))
+      .map((p, idx) => ({
+        id: p.id,
+        name: resolvePlayerName(p.id),
+        place: gameState.placements.length + idx + 1,
+        score: gameState.sessionScores[p.id] ?? 0,
+        isWinner: p.id === winnerId,
+        colourHex: p.colourHex,
+        avatarId: (p as { avatarId?: string }).avatarId,
+      })),
+  ];
+  const standings: Standing[] = allPlayers.sort((a, b) => a.place - b.place);
 
   function handlePlayAgain() {
     if (isLocalMode) {
@@ -168,8 +186,10 @@ export default function ResultsScreen() {
           data={standings}
           keyExtractor={(item) => item.id}
           style={styles.list}
-          renderItem={({ item, index }) => (
-            item.isWinner ? (
+          renderItem={({ item }) => {
+            const placeBadge = item.place === 1 ? '♛' : item.place === 2 ? '🥈' : item.place === 3 ? '🥉' : null;
+            const placeColor = item.place === 1 ? THEME.gold : item.place === 2 ? '#C0C0C0' : item.place === 3 ? '#CD7F32' : THEME.textMuted;
+            return item.isWinner ? (
               <Animated.View
                 style={[
                   styles.row,
@@ -177,7 +197,7 @@ export default function ResultsScreen() {
                   { borderColor: winnerBorderColor },
                 ]}
               >
-                <Text style={styles.position}>#{index + 1}</Text>
+                <Text style={[styles.position, { color: placeColor }]}>#{item.place}</Text>
                 <Avatar
                   avatarId={item.avatarId ?? 'avatar_01'}
                   size={48}
@@ -186,18 +206,15 @@ export default function ResultsScreen() {
                 />
                 <Text style={[styles.playerName, item.colourHex ? { color: item.colourHex } : undefined]}>{item.name}</Text>
                 <View style={styles.rightSide}>
-                  <Text style={styles.cardCount}>
-                    {item.cardCount === 0 ? 'out!' : `${item.cardCount} cards`}
-                  </Text>
                   <View style={styles.scoreBadge}>
                     <Text style={styles.scoreText}>{item.score} pt{item.score !== 1 ? 's' : ''}</Text>
                   </View>
                 </View>
-                <Text style={styles.crown}>♛</Text>
+                {placeBadge && <Text style={[styles.crown, { color: placeColor }]}>{placeBadge}</Text>}
               </Animated.View>
             ) : (
               <View style={[styles.row]}>
-                <Text style={styles.position}>#{index + 1}</Text>
+                <Text style={[styles.position, { color: placeColor }]}>#{item.place}</Text>
                 <Avatar
                   avatarId={item.avatarId ?? 'avatar_01'}
                   size={48}
@@ -206,16 +223,14 @@ export default function ResultsScreen() {
                 />
                 <Text style={[styles.playerName, item.colourHex ? { color: item.colourHex } : undefined]}>{item.name}</Text>
                 <View style={styles.rightSide}>
-                  <Text style={styles.cardCount}>
-                    {item.cardCount === 0 ? 'out!' : `${item.cardCount} cards`}
-                  </Text>
                   <View style={styles.scoreBadge}>
                     <Text style={styles.scoreText}>{item.score} pt{item.score !== 1 ? 's' : ''}</Text>
                   </View>
                 </View>
+                {placeBadge && <Text style={[styles.crown, { color: placeColor }]}>{placeBadge}</Text>}
               </View>
-            )
-          )}
+            );
+          }}
         />
 
         {showPlayAgain && (
@@ -301,10 +316,6 @@ const styles = StyleSheet.create({
   rightSide: {
     alignItems: 'flex-end',
     gap: 4,
-  },
-  cardCount: {
-    color: THEME.textSecondary,
-    fontSize: 13,
   },
   scoreBadge: {
     backgroundColor: 'rgba(201,168,76,0.15)',

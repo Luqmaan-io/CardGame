@@ -6,7 +6,6 @@ import {
   StyleSheet,
   SafeAreaView,
   useWindowDimensions,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -151,6 +150,7 @@ export default function GameScreen() {
 
   // ── Menu sheet ────────────────────────────────────────────────────────────
   const [showMenu, setShowMenu] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   // ── Last move (most recent completed move) ────────────────────────────────
   const [lastMove, setLastMove] = useState<HistoryEntry | null>(null);
@@ -1111,21 +1111,32 @@ export default function GameScreen() {
     : (roomInfo?.turnDuration ?? 30);
 
   function handleLeaveGame() {
+    console.log('=== LEAVE GAME TRIGGERED ===');
     try {
-      // Online — notify server before resetting state
+      console.log('Step 1 — cleaning up timers');
+      closeOnCardsWindow();
+      cancelAutoDraw();
+
+      console.log('Step 2 — emitting room leave', { isLocalMode, roomId, myPlayerId });
       if (!isLocalMode) {
         const { socket: s, roomId: rId, myPlayerId: pid } = useGameStore.getState();
         s?.emit('room:leave', { roomId: rId, playerId: pid });
-        useGameStore.getState().reset();
       }
-      // Clear any open timers/windows
-      closeOnCardsWindow();
-      cancelAutoDraw();
-      // Navigate home — use push so the history entry always exists
+
+      console.log('Step 3 — resetting store');
+      useGameStore.getState().reset();
+
+      console.log('Step 4 — navigating home', { routerAvailable: !!router });
       router.push('/');
-    } catch {
-      // Force navigate even if cleanup threw
-      router.push('/');
+      console.log('Step 5 — navigation called');
+    } catch (err) {
+      console.error('=== LEAVE GAME ERROR ===', err);
+      // Web fallback
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      } else {
+        router.push('/');
+      }
     }
   }
 
@@ -1346,20 +1357,7 @@ export default function GameScreen() {
               style={[styles.menuItem]}
               onPress={() => {
                 setShowMenu(false);
-                Alert.alert(
-                  'Leave game?',
-                  isLocalMode
-                    ? 'Your game progress will be lost.'
-                    : 'You will forfeit this game and your opponent wins.',
-                  [
-                    { text: 'Stay', style: 'cancel' },
-                    {
-                      text: 'Leave',
-                      style: 'destructive',
-                      onPress: handleLeaveGame,
-                    },
-                  ]
-                );
+                setShowLeaveConfirm(true);
               }}
             >
               <Text style={[styles.menuItemText, { color: THEME.danger }]}>Leave game</Text>
@@ -1371,6 +1369,77 @@ export default function GameScreen() {
             >
               <Text style={styles.menuCloseText}>Cancel</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ── Leave game confirmation overlay ─────────────────────────────── */}
+      {showLeaveConfirm && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 200,
+        }}>
+          <View style={{
+            backgroundColor: THEME.cardBackground,
+            borderRadius: 16,
+            padding: 24,
+            width: 280,
+            gap: 16,
+            borderWidth: 1,
+            borderColor: THEME.gold,
+          }}>
+            <Text style={{
+              color: THEME.textPrimary,
+              fontSize: 18,
+              fontWeight: '500',
+              textAlign: 'center',
+            }}>
+              Leave game?
+            </Text>
+            <Text style={{
+              color: THEME.textSecondary,
+              fontSize: 14,
+              textAlign: 'center',
+            }}>
+              {isLocalMode ? 'Your game progress will be lost.' : 'You will forfeit this game.'}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor: THEME.gold,
+                  borderRadius: 10,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => setShowLeaveConfirm(false)}
+              >
+                <Text style={{ color: THEME.gold, fontSize: 15 }}>Stay</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: THEME.danger,
+                  borderRadius: 10,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  setShowLeaveConfirm(false);
+                  handleLeaveGame();
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '500' }}>Leave</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}

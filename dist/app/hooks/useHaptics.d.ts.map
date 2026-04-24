@@ -1,0 +1,1 @@
+{"version":3,"file":"useHaptics.d.ts","sourceRoot":"","sources":["../../../app/hooks/useHaptics.ts"],"names":[],"mappings":"AAEA,MAAM,MAAM,UAAU,GAAG,OAAO,GAAG,QAAQ,GAAG,SAAS,GAAG,SAAS,GAAG,OAAO,CAAC;AAE9E,wBAAgB,UAAU;oBACK,UAAU,KAAG,OAAO,CAAC,IAAI,CAAC;EAyBxD"}

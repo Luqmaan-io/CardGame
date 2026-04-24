@@ -1,0 +1,1 @@
+{"version":3,"file":"useSocket.d.ts","sourceRoot":"","sources":["../../../app/hooks/useSocket.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,IAAI,EAAE,IAAI,EAAE,MAAM,oBAAoB,CAAC;AAIrD,wBAAgB,SAAS;uBA6IG,IAAI,EAAE,iBAAiB,IAAI;;8BAUrB,CAAC,GAAG,CAAC,GAAG,CAAC,WAAe,MAAM,cAAc,MAAM,aAAa,MAAM,iBAAgB,MAAM;uBAKjG,MAAM,WAAW,MAAM,cAAc,MAAM,aAAa,MAAM;wBAK7D,MAAM;wBAKN,IAAI;;;;EA0BhC"}

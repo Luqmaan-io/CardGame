@@ -1,0 +1,1 @@
+{"version":3,"file":"LastMoveBanner.d.ts","sourceRoot":"","sources":["../../../app/components/LastMoveBanner.tsx"],"names":[],"mappings":"AAAA,OAAO,KAAK,MAAM,OAAO,CAAC;AAK1B,OAAO,KAAK,EAAE,YAAY,EAAE,MAAM,oBAAoB,CAAC;AA2CvD,UAAU,mBAAmB;IAC3B,KAAK,EAAE,YAAY,GAAG,IAAI,CAAC;CAC5B;AAID,wBAAgB,cAAc,CAAC,EAAE,KAAK,EAAE,EAAE,mBAAmB,4BA6D5D"}

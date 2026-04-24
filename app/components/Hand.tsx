@@ -19,7 +19,7 @@ const MAX_ROTATION = 20;
 const ARC_HEIGHT = 16;
 const SELECTED_LIFT = 20;
 const DRAG_LIFT = 15;
-const DRAG_DELAY_MS = 200;
+const DRAG_DELAY_MS = 120;
 const PAD_TOP = SELECTED_LIFT + DRAG_LIFT + 8;
 const PAD_BOTTOM = 16;
 const CONTAINER_HEIGHT = PAD_TOP + ARC_HEIGHT + CARD_H + PAD_BOTTOM;
@@ -303,11 +303,13 @@ export function Hand({
       dragCardX.setValue(ds.origCardX + gestureState.dx);
       dragCardY.setValue(ds.origCardY + gestureState.dy - DRAG_LIFT);
 
+      if (gestureState.moveX !== 0) lastKnownX.current = gestureState.moveX;
+
       const { spacing, startX } = computeLayout(
         localCardsRef.current.length,
         screenWidthRef.current
       );
-      const localX = gestureState.moveX - containerPageXRef.current;
+      const localX = (gestureState.moveX !== 0 ? gestureState.moveX : lastKnownX.current) - containerPageXRef.current;
       const newHover = localXToHoverIdx(localX, localCardsRef.current.length, startX, spacing);
       if (newHover !== hoverIdxRef.current) {
         hoverIdxRef.current = newHover;
@@ -335,14 +337,19 @@ export function Hand({
         return;
       }
 
-      // Recalculate drop index from moveX at the moment of release
-      // (more reliable than hoverIdxRef which may lag on quick lifts)
+      // Recalculate drop index from release position using closest-card-centre distance
       const fromIdx = ds.cardIndex;
       const n = localCardsRef.current.length;
       const { spacing, startX } = computeLayout(n, screenWidthRef.current);
-      const releaseLocalX = gestureState.moveX - containerPageXRef.current;
-      const calculatedIdx = localXToHoverIdx(releaseLocalX, n, startX, spacing);
-      const toIdx = calculatedIdx;
+      const releaseX = gestureState.moveX !== 0 ? gestureState.moveX : lastKnownX.current;
+      const releaseLocalX = releaseX - containerPageXRef.current;
+      let toIdx = 0;
+      let minDist = Infinity;
+      for (let i = 0; i < n; i++) {
+        const centre = startX + i * spacing + CARD_W / 2;
+        const dist = Math.abs(releaseLocalX - centre);
+        if (dist < minDist) { minDist = dist; toIdx = i; }
+      }
       const next = [...localCardsRef.current];
       const [removed] = next.splice(fromIdx, 1);
       if (removed !== undefined) next.splice(toIdx, 0, removed);
@@ -376,8 +383,11 @@ export function Hand({
       onPanResponderMove: (_, gs) => panHandlersRef.current.onMove(gs),
       onPanResponderRelease: (_, gs) => panHandlersRef.current.onRelease(gs),
       onPanResponderTerminate: () => panHandlersRef.current.onTerminate(),
+      onPanResponderTerminationRequest: () => false,
     })
   ).current;
+
+  const lastKnownX = useRef<number>(0);
 
   const containerRef = useRef<View>(null);
 
@@ -406,6 +416,15 @@ export function Hand({
         containerRef.current?.measure((_, __, ___, ____, pageX) => {
           containerPageXRef.current = pageX;
         });
+      }}
+      onTouchEnd={(e) => {
+        const ds = dragStateRef.current;
+        if (ds?.isDragging) {
+          panHandlersRef.current.onRelease({
+            moveX: e.nativeEvent.pageX,
+            moveY: e.nativeEvent.pageY,
+          } as PanResponderGestureState);
+        }
       }}
       {...panResponder.panHandlers}
     >

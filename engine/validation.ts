@@ -107,13 +107,14 @@ function _findWinningSequence(
     const nextCard = remaining[i]!;
     if (!_canFollow(lastCard, nextCard, pendingQueenSuit, direction)) continue;
 
-    // Update direction when a same-suit rank step is made
+    // Update direction only on same-suit different-rank steps; same-rank is neutral
     let newDirection = direction;
     if (lastCard.suit === nextCard.suit && lastCard.rank !== nextCard.rank) {
       const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
       const diff = ranks.indexOf(nextCard.rank) - ranks.indexOf(lastCard.rank);
       newDirection = diff > 0 ? 'asc' : 'desc';
     }
+    // If same rank (suit change), newDirection stays unchanged — direction is unaffected
 
     const newRemaining = [...remaining];
     newRemaining.splice(i, 1);
@@ -131,9 +132,9 @@ function _canFollow(
   if (pendingQueenSuit !== null) {
     return next.suit === pendingQueenSuit || next.rank === 'Q';
   }
-  // Same rank — valid suit change, no direction constraint
+  // Same rank — suit change, completely neutral with respect to direction
   if (prev.rank === next.rank) return true;
-  // Same suit — must be adjacent and direction-consistent
+  // Same suit different rank — must be adjacent and direction-consistent
   if (prev.suit === next.suit) {
     const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
     const diff = ranks.indexOf(next.rank) - ranks.indexOf(prev.rank);
@@ -201,9 +202,11 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
       continue;
     }
 
-    // Matching rank — suit change, no rank step needed
-    if (curr.rank === prev.rank) {
-      // Valid connection; direction is unchanged (rank match doesn't advance the run)
+    const isSameRank = curr.rank === prev.rank;
+    const isSameSuit = curr.suit === prev.suit;
+
+    // Matching rank — suit change, completely neutral with respect to direction
+    if (isSameRank) {
       if (curr.rank === 'Q') {
         needsCoverSuit = curr.suit;
       }
@@ -211,7 +214,7 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
     }
 
     // Different rank — must match suit AND be adjacent (±1) in run direction
-    if (curr.suit !== prev.suit) return false;
+    if (!isSameSuit) return false;
 
     const prevIdx = rankIndex(prev.rank);
     const currIdx = rankIndex(curr.rank);
@@ -223,7 +226,7 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
     const wrapsDesc = prev.rank === 'A' && curr.rank === 'K';
 
     if (diff === 1 || wrapsAsc) {
-      // Ascending step
+      // Ascending step — direction only set/checked on same-suit rank steps
       if (direction === 'desc') return false;
       direction = 'asc';
     } else if (diff === -1 || wrapsDesc) {

@@ -350,3 +350,50 @@ describe('isValidCombo — Queen stacking', () => {
     expect(isValidCombo(combo, state)).toBe(true);
   });
 });
+
+// ─── isValidCombo — same-rank suit changes are direction-neutral ─────────────
+
+function c(rank: Card['rank'], suit: Card['suit']): Card {
+  return { rank, suit };
+}
+
+describe('isValidCombo — same-rank suit changes are direction-neutral', () => {
+  it('5♥ → 6♥ → 6♣ → 6♠ — ascending then suit changes, valid', () => {
+    const state = makeState({ discard: [c('4', 'hearts')] });
+    expect(isValidCombo(
+      [c('5', 'hearts'), c('6', 'hearts'), c('6', 'clubs'), c('6', 'spades')],
+      state
+    )).toBe(true);
+  });
+
+  it('6♥ → 6♣ → 7♣ — suit change then ascending same suit, valid', () => {
+    const state = makeState({ discard: [c('6', 'spades')] });
+    expect(isValidCombo([c('6', 'hearts'), c('6', 'clubs'), c('7', 'clubs')], state)).toBe(true);
+  });
+
+  it('6♥ → 6♣ → 5♣ — suit change then descending same suit, valid', () => {
+    const state = makeState({ discard: [c('6', 'spades')] });
+    expect(isValidCombo([c('6', 'hearts'), c('6', 'clubs'), c('5', 'clubs')], state)).toBe(true);
+  });
+
+  it('5♥ → 6♥ → 6♣ → 5♣ — ascending then suit change then descending, INVALID (direction change)', () => {
+    const state = makeState({ discard: [c('4', 'hearts')] });
+    expect(isValidCombo(
+      [c('5', 'hearts'), c('6', 'hearts'), c('6', 'clubs'), c('5', 'clubs')],
+      state
+    )).toBe(false);
+  });
+
+  it('6♥ → 6♣ → 7♣ → 7♥ → 8♥ — mixed suit changes and ascending, valid', () => {
+    const state = makeState({ discard: [c('6', 'spades')] });
+    expect(isValidCombo(
+      [c('6', 'hearts'), c('6', 'clubs'), c('7', 'clubs'), c('7', 'hearts'), c('8', 'hearts')],
+      state
+    )).toBe(true);
+  });
+
+  it('6♥ → 6♣ → 6♠ — three same-rank suit changes matching discard rank, valid', () => {
+    const state = makeState({ discard: [c('6', 'spades')] });
+    expect(isValidCombo([c('6', 'hearts'), c('6', 'clubs'), c('6', 'diamonds')], state)).toBe(true);
+  });
+});

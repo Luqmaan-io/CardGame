@@ -134,6 +134,11 @@ function getPerspectiveTransform(viewAngle: ViewAngle): ViewStyle['transform'] {
   }
 }
 
+// Pile card dimensions — declared here so DrawPileView and the pile position
+// constants (below) both reference the same values.
+const CARD_W = 68
+const CARD_H = 99
+
 // ─── DrawPileView ─────────────────────────────────────────────────────────────
 
 function DrawPileView({
@@ -161,7 +166,7 @@ function DrawPileView({
           ]}
         />
       )}
-      <CardBack width={52} height={76} />
+      <CardBack width={CARD_W} height={CARD_H} />
       <View style={drawStyles.countBadge}>
         <Text style={drawStyles.countText}>{count}</Text>
       </View>
@@ -184,8 +189,8 @@ const drawStyles = StyleSheet.create({
   },
   stackBehind: {
     position: 'absolute',
-    width: 52,
-    height: 76,
+    width: CARD_W,
+    height: CARD_H,
     borderRadius: 4,
     backgroundColor: THEME.cardBack,
     borderWidth: 1,
@@ -495,14 +500,13 @@ const SUIT_SYMBOLS: Record<string, string> = {
 };
 
 // Pile dimensions in table coordinate space (fixed, screen-independent)
-const CARD_W = 52
-const CARD_H = 76
+// CARD_W and CARD_H are declared above DrawPileView so drawStyles can reference them.
 const PILE_GAP = 20
 const PILES_TOTAL_WIDTH = CARD_W * 2 + PILE_GAP
-const DISCARD_X = TABLE_CENTRE - PILES_TOTAL_WIDTH / 2          // 238
-const DISCARD_Y = TABLE_CENTRE - CARD_H / 2                     // 262
-const DRAW_X = TABLE_CENTRE - PILES_TOTAL_WIDTH / 2 + CARD_W + PILE_GAP  // 310
-const DRAW_Y = TABLE_CENTRE - CARD_H / 2                        // 262
+const DISCARD_X = TABLE_CENTRE - PILES_TOTAL_WIDTH / 2
+const DISCARD_Y = TABLE_CENTRE - CARD_H / 2
+const DRAW_X = TABLE_CENTRE - PILES_TOTAL_WIDTH / 2 + CARD_W + PILE_GAP
+const DRAW_Y = TABLE_CENTRE - CARD_H / 2
 
 // Slot placement radius — keeps slots on the visible table rim
 const SLOT_RADIUS = TABLE_RADIUS * 0.88   // ≈ 246

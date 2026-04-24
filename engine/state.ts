@@ -69,15 +69,29 @@ export function checkPlayerFinished(playerId: string, state: GameState): GameSta
     };
   }
 
-  // Game continues — remove finished player, adjust currentPlayerIndex
-  const newCurrentIndex =
-    state.currentPlayerIndex >= remainingPlayers.length ? 0 : state.currentPlayerIndex;
+  // Game continues — remove finished player, recalculate currentPlayerIndex
+  const finishedPlayerIndex = state.players.findIndex((p) => p.id === playerId);
+  let newCurrentIndex = state.currentPlayerIndex;
+
+  if (finishedPlayerIndex < state.currentPlayerIndex) {
+    // Finished player was before current in the array — shift index back by 1
+    newCurrentIndex = state.currentPlayerIndex - 1;
+  } else if (finishedPlayerIndex === state.currentPlayerIndex) {
+    // Finished player IS the current player — wrap to next (modulo remaining)
+    newCurrentIndex = state.currentPlayerIndex % (state.players.length - 1);
+  }
+  // If finishedPlayerIndex > currentPlayerIndex — index is unaffected
+
+  // Clamp to valid range
+  newCurrentIndex = Math.max(0, Math.min(newCurrentIndex, remainingPlayers.length - 1));
+
   return {
     ...scoredState,
     placements: newPlacements,
     players: remainingPlayers,
     winnerId: newPlacements[0]!.playerId,
     currentPlayerIndex: newCurrentIndex,
+    currentPlayerHasActed: false,  // reset so the next player can act
     phase: 'play',
   };
 }

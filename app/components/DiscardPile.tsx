@@ -6,8 +6,8 @@ import type { Card as CardType, Suit } from '../../engine/types';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const FAN_SIZE = 4;
-const CARD_W = 62;
-const CARD_H = 90;
+const CARD_W = 68;
+const CARD_H = 99;
 
 const SUIT_SYMBOLS: Record<Suit, string> = {
   hearts: '♥',

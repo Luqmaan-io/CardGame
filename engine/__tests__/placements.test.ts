@@ -1,4 +1,5 @@
 import { applyPlay, checkPlayerFinished } from '../state';
+import { getValidPlays } from '../ai';
 import { Card, GameState, Player } from '../types';
 
 function makePlayer(id: string, hand: Card[], isHuman = false): Player {
@@ -202,5 +203,76 @@ describe('placements — currentPlayerIndex adjusts after removal', () => {
 
     expect(result.currentPlayerIndex).toBe(0);
     expect(result.players[0]!.id).toBe('p2');
+  });
+
+  it('currentPlayerIndex shifts back when finished player was before current player', () => {
+    // p1 (index 0) finishes (empty hand), current turn is p3 (index 2)
+    // After removal remaining = [p2, p3], p3 is now at index 1 → should become 1
+    const state = makeState({
+      currentPlayerIndex: 2, // p3's turn
+      discard: [{ rank: '5', suit: 'hearts' }],
+      players: [
+        makePlayer('p1', []),   // empty hand — finished
+        makePlayer('p2', [{ rank: '3', suit: 'hearts' }]),
+        makePlayer('p3', [{ rank: '4', suit: 'hearts' }]),
+      ],
+    });
+    const result = checkPlayerFinished('p1', state);
+    // p3 was at index 2, p1 (index 0) was before it, so index shifts back to 1
+    expect(result.currentPlayerIndex).toBe(1);
+    expect(result.players[1]!.id).toBe('p3');
+  });
+});
+
+// ─── Regression: single non-power card is always playable ────────────────────
+
+describe('single non-power card — selectable and playable', () => {
+  it('getValidPlays returns the card when hand has one non-power card matching discard rank', () => {
+    const state = makeState({
+      discard: [{ rank: '5', suit: 'clubs' }],
+      players: [
+        makePlayer('p1', [{ rank: '5', suit: 'hearts' }]),
+        makePlayer('p2', [{ rank: '3', suit: 'clubs' }]),
+      ],
+      currentPlayerIndex: 0,
+      currentPlayerHasActed: false,
+    });
+    const validPlays = getValidPlays(state);
+    expect(validPlays.length).toBeGreaterThan(0);
+  });
+
+  it('playing last non-power card records 1st place and continues/ends game', () => {
+    const state = makeState({
+      discard: [{ rank: '5', suit: 'clubs' }],
+      players: [
+        makePlayer('p1', [{ rank: '5', suit: 'hearts' }]),
+        makePlayer('p2', [{ rank: '3', suit: 'clubs' }]),
+      ],
+      currentPlayerIndex: 0,
+      currentPlayerHasActed: false,
+    });
+    const result = applyPlay([{ rank: '5', suit: 'hearts' }], null, state);
+    expect(result.placements).toHaveLength(2);
+    expect(result.placements[0]!.playerId).toBe('p1');
+    expect(result.placements[0]!.place).toBe(1);
+    expect(result.phase).toBe('game-over');
+  });
+
+  it('after another player finishes, remaining player has currentPlayerHasActed = false', () => {
+    // p2 finishes (3-player game), p3 should now be active with hasActed = false
+    const state = makeState({
+      currentPlayerIndex: 1, // p2's turn
+      discard: [{ rank: '5', suit: 'hearts' }],
+      players: [
+        makePlayer('p1', [{ rank: '3', suit: 'hearts' }]),
+        makePlayer('p2', [{ rank: '5', suit: 'clubs' }]),
+        makePlayer('p3', [{ rank: '4', suit: 'hearts' }]),
+      ],
+      currentPlayerHasActed: false,
+    });
+    const result = applyPlay([{ rank: '5', suit: 'clubs' }], null, state);
+    expect(result.phase).toBe('play');
+    expect(result.currentPlayerHasActed).toBe(false);
+    expect(result.placements).toHaveLength(1);
   });
 });

@@ -18,7 +18,12 @@ const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: [
+      'https://playpowerstack.vercel.app',
+      'http://localhost:8081',
+      'http://localhost:8082',
+      'http://localhost:8083',
+    ],
     methods: ['GET', 'POST'],
   },
 });

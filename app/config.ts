@@ -3,6 +3,6 @@
 // to find your current IP.
 
 const DEV_SERVER = 'http://192.168.55.52:3001'
-const PROD_SERVER = 'https://your-server-url.com' // placeholder
+const PROD_SERVER = 'https://powerstack-server-cec1fd3d55f7.herokuapp.com'
 
 export const SERVER_URL = __DEV__ ? DEV_SERVER : PROD_SERVER

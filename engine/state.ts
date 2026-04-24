@@ -1,6 +1,6 @@
 import { Card, GameState, Player, Suit } from './types';
 import { isPowerCard, isBlackJack } from './types';
-import { isValidCombo } from './validation';
+import { isValidCombo, isValidPlay } from './validation';
 import { canWinNextTurn } from './validation';
 import { applyPowerCardEffect } from './effects';
 import { reshuffleDiscard, shuffleDeck } from './deck';
@@ -223,12 +223,54 @@ export function applyPlay(
   declaredSuit: Suit | null,
   state: GameState
 ): GameState {
+  const currentPlayer = state.players[state.currentPlayerIndex];
+  if (!currentPlayer) throw new Error('No current player.');
+
+  // ── Solo Queen path ─────────────────────────────────────────────────────────
+  // Playing a single Queen alone is valid (no combo check needed) — the player
+  // draws one card as a penalty and the turn immediately advances.
+  const isSoloQueen = cards.length === 1 && cards[0]!.rank === 'Q';
+  if (isSoloQueen) {
+    const queen = cards[0]!;
+    if (!isValidPlay(queen, state)) {
+      throw new Error('Invalid solo Queen play.');
+    }
+    const queenIdx = currentPlayer.hand.findIndex(
+      (c) => c.rank === queen.rank && c.suit === queen.suit
+    );
+    if (queenIdx === -1) throw new Error(`Card not in hand: ${queen.rank} of ${queen.suit}`);
+    const newHand = [...currentPlayer.hand];
+    newHand.splice(queenIdx, 1);
+    const updatedPlayer: Player = { ...currentPlayer, hand: newHand };
+    let queenState: GameState = applyMoveSuccess(currentPlayer.id, {
+      ...state,
+      players: state.players.map((p) => (p.id === currentPlayer.id ? updatedPlayer : p)),
+      discard: [...state.discard, queen],
+      activeSuit: null,
+      skipsRemaining: 0,
+      timerStartedAt: null,
+    });
+    // Draw one card as penalty for the solo Queen play
+    queenState = drawCard(1, queenState);
+    // Advance turn
+    const nextIndex = getNextPlayerIndex(queenState);
+    const nextPlayer = queenState.players[nextIndex];
+    return {
+      ...queenState,
+      currentPlayerIndex: nextIndex,
+      skipsRemaining: 0,
+      phase: 'play',
+      currentPlayerHasActed: false,
+      timerStartedAt: Date.now(),
+      onCardsDeclarations: nextPlayer
+        ? clearOnCardsDeclarationInner(nextPlayer.id, queenState.onCardsDeclarations)
+        : queenState.onCardsDeclarations,
+    };
+  }
+
   if (!isValidCombo(cards, state)) {
     throw new Error('Invalid combo played.');
   }
-
-  const currentPlayer = state.players[state.currentPlayerIndex];
-  if (!currentPlayer) throw new Error('No current player.');
 
   // Remove played cards from hand
   const playedSet = [...cards];

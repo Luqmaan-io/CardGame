@@ -90,9 +90,9 @@ When multiple different power cards are played in the same combo, only the final
 - **Red Jack only counters black Jack — not vice versa.** Red Jacks are defensive only.
 - **Red Jacks played outside a black Jack penalty** are treated as normal rank/suit cards (no special effect).
  
-### Queen — Must Cover
+### Queen — Cover or Penalty
 - **Effect:** A Queen must be covered by either another Queen of any suit OR a card of the same suit as the Queen. Multiple Queens can be stacked — each new Queen satisfies the previous Queen's cover requirement. The final Queen in a chain must be covered by a same-suit non-Queen card.
-- **If a player cannot cover:** They cannot legally play the Queen. They must play a different card or draw.
+- **Solo Queen (no cover):** A player may play a Queen alone without a cover card. If they do, they immediately draw one card as a penalty and their turn ends. The Queen sits as the top discard card and the next player must match the Queen's suit or play another Queen.
 - **Cover card continues combo:** The cover card can extend into a further combo as normal.
 - **Cover card can be a power card:** e.g. `Q♥ → 2♥` is valid; the 2♥ penalty then applies to the next player.
 - **Example stacking:** `Q♠ → Q♥ → K♥` is valid: Q♥ covers Q♠, K♥ covers Q♥. The cover suit must always match the most recent Queen's suit.
@@ -145,7 +145,7 @@ Only **1st place** counts as a win for stats purposes. All other placements are 
 |---|---|
 | Starting discard is a power card | Treat as neutral — no effect on first turn |
 | Player must draw but deck + discard are both empty | Player skips drawing, turn ends (extremely rare) |
-| Queen is second-to-last card, no same-suit cover in hand | Player cannot legally play the Queen; must draw |
+| Queen is second-to-last card, no same-suit cover in hand | Player may play the Queen alone (draws 1 as penalty, turn ends) or play a different card |
 | All red Jacks already discarded when black Jack played | Next player must draw 7 (or 14 if stacked) — no counter available |
 | Player plays King as last card | Direction reverses, then player draws one card (power card finish rule) |
 | 2-stack penalty + player draws | Turn ends immediately after drawing. No play from drawn cards. |

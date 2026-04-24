@@ -122,7 +122,7 @@ describe('isValidPlay — Queen cover requirement', () => {
     expect(isValidPlay({ rank: 'Q', suit: 'hearts' }, state)).toBe(true);
   });
 
-  it('rejects Queen when player has no same-suit cover and no other Queen (Edge Case 3)', () => {
+  it('allows Queen even when player has no same-suit cover — solo Queen penalty rule', () => {
     const hand: Card[] = [
       { rank: 'Q', suit: 'hearts' },
       { rank: '5', suit: 'spades' }, // different suit, not a Queen
@@ -131,8 +131,8 @@ describe('isValidPlay — Queen cover requirement', () => {
       discard: [{ rank: '3', suit: 'hearts' }],
       players: [makePlayer('p1', hand)],
     });
-    // Pass same reference as in hand — correctly excludes the played card
-    expect(isValidPlay(hand[0]!, state)).toBe(false);
+    // Queen is now always valid — player draws 1 penalty card instead
+    expect(isValidPlay(hand[0]!, state)).toBe(true);
   });
 
   it('allows Queen when only other card is another Queen (stacking rule)', () => {
@@ -226,7 +226,7 @@ describe('isValidCombo — Queen mid-combo', () => {
     expect(isValidCombo(combo, state)).toBe(true);
   });
 
-  it('rejects combo ending on uncovered Queen', () => {
+  it('solo Queen alone is a valid combo — penalty handled in applyPlay', () => {
     const hand: Card[] = [
       { rank: 'Q', suit: 'hearts' },
       { rank: '3', suit: 'spades' },
@@ -235,8 +235,8 @@ describe('isValidCombo — Queen mid-combo', () => {
       discard: [{ rank: '3', suit: 'hearts' }],
       players: [makePlayer('p1', hand)],
     });
-    // Queen played but no cover follows
-    expect(isValidCombo([{ rank: 'Q', suit: 'hearts' }], state)).toBe(false);
+    // Solo Queen is now valid — player draws 1 card as penalty via applyPlay
+    expect(isValidCombo([{ rank: 'Q', suit: 'hearts' }], state)).toBe(true);
   });
 
   // Edge Case 12: Q♥ → 2♥ (power card as cover)
@@ -395,5 +395,33 @@ describe('isValidCombo — same-rank suit changes are direction-neutral', () => 
   it('6♥ → 6♣ → 6♠ — three same-rank suit changes matching discard rank, valid', () => {
     const state = makeState({ discard: [c('6', 'spades')] });
     expect(isValidCombo([c('6', 'hearts'), c('6', 'clubs'), c('6', 'diamonds')], state)).toBe(true);
+  });
+});
+
+// ─── Solo Queen rule ──────────────────────────────────────────────────────────
+
+describe('isValidPlay — solo Queen is always valid', () => {
+  it('solo Queen is valid to play when matching suit', () => {
+    const state = makeState({ discard: [c('5', 'hearts')] });
+    expect(isValidPlay(c('Q', 'hearts'), state)).toBe(true);
+  });
+
+  it('solo Queen is valid to play when matching rank', () => {
+    const state = makeState({ discard: [c('Q', 'spades')] });
+    expect(isValidPlay(c('Q', 'hearts'), state)).toBe(true);
+  });
+});
+
+describe('isValidCombo — Queen in multi-card combo still requires cover', () => {
+  it('Queen in multi-card combo without cover is invalid', () => {
+    // [Q♥] alone as single card is valid (solo Queen path)
+    // but [Q♥, 3♠] — 3♠ is not hearts and not a Queen, so invalid
+    const state = makeState({ discard: [c('5', 'hearts')] });
+    expect(isValidCombo([c('Q', 'hearts'), c('3', 'spades')], state)).toBe(false);
+  });
+
+  it('Queen in multi-card combo with same-suit cover is valid', () => {
+    const state = makeState({ discard: [c('5', 'hearts')] });
+    expect(isValidCombo([c('Q', 'hearts'), c('3', 'hearts')], state)).toBe(true);
   });
 });

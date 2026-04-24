@@ -462,3 +462,17 @@ describe('declareOnCards — single remaining non-power card', () => {
     expect(p1.hand).toHaveLength(1); // hand unchanged — no penalty cards added
   });
 });
+
+// ─── canWinNextTurn — solo Queen cannot win ───────────────────────────────────
+
+describe('canWinNextTurn — solo Queen is not a winning move', () => {
+  it('solo Queen as last card cannot win (forces draw)', () => {
+    const state = makeState({
+      players: [
+        makePlayer('p1', [{ rank: 'Q', suit: 'hearts' }]),
+        makePlayer('p2', [{ rank: '3', suit: 'clubs' }]),
+      ],
+    });
+    expect(canWinNextTurn('p1', state)).toBe(false);
+  });
+});

@@ -335,3 +335,30 @@ describe('applyPlay — throws on invalid combo', () => {
     expect(() => applyPlay([{ rank: '7', suit: 'clubs' }], null, state)).toThrow();
   });
 });
+
+// ─── applyPlay — solo Queen penalty ──────────────────────────────────────────
+
+describe('applyPlay — solo Queen play', () => {
+  it('solo Queen played — player draws 1 card, turn advances', () => {
+    const state = makeState({
+      discard: [{ rank: '5', suit: 'hearts' }],
+      deck: [{ rank: '7', suit: 'spades' }, { rank: '8', suit: 'diamonds' }],
+      players: [
+        makePlayer('p1', [{ rank: 'Q', suit: 'hearts' }, { rank: '3', suit: 'clubs' }]),
+        makePlayer('p2', [{ rank: '6', suit: 'clubs' }]),
+      ],
+      currentPlayerIndex: 0,
+    });
+
+    const result = applyPlay([{ rank: 'Q', suit: 'hearts' }], null, state);
+
+    // Queen on discard
+    expect(result.discard[result.discard.length - 1]).toEqual({ rank: 'Q', suit: 'hearts' });
+    // Player had 2 cards, played 1, drew 1 = still 2
+    const p1 = result.players.find((p) => p.id === 'p1')!;
+    expect(p1.hand.length).toBe(2);
+    // Turn advanced to p2
+    expect(result.currentPlayerIndex).not.toBe(0);
+    expect(result.currentPlayerHasActed).toBe(false);
+  });
+});

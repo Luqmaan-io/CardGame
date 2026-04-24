@@ -43,16 +43,6 @@ export function isValidPlay(card: Card, state: GameState): boolean {
   // Ace is always valid in a normal turn — it overrides suit/rank matching
   if (card.rank === 'A') return true;
 
-  // Queen: player must hold a same-suit non-Queen card OR another Queen of any suit
-  if (card.rank === 'Q') {
-    const currentPlayer = state.players[state.currentPlayerIndex];
-    if (!currentPlayer) return false;
-    const hasCover = currentPlayer.hand.some(
-      (c) => c !== card && (c.rank === 'Q' || c.suit === card.suit)
-    );
-    if (!hasCover) return false;
-  }
-
   // Red Jack played normally (no black Jack penalty active): normal suit/rank rules only
   // (Red Jack has no special effect outside a black Jack penalty)
 
@@ -96,6 +86,8 @@ function _findWinningSequence(
 ): boolean {
   if (remaining.length === 0) {
     const lastCard = current[current.length - 1]!;
+    // Single Queen alone — not a winning sequence (forces a penalty draw)
+    if (current.length === 1 && lastCard.rank === 'Q') return false;
     if (isPowerCard(lastCard)) return false;
     return _validateQueenCovers(current);
   }
@@ -170,10 +162,10 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
   if (cards.length === 0) return false;
 
   // Single card — delegate to isValidPlay
+  // A single Queen is a valid combo — the solo Queen penalty (draw 1) is applied
+  // in applyPlay, not here.
   if (cards.length === 1) {
     if (!isValidPlay(cards[0]!, state)) return false;
-    // A single Queen is never a complete combo — it must be followed by a cover card
-    if (cards[0]!.rank === 'Q') return false;
     return true;
   }
 

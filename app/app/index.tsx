@@ -17,7 +17,6 @@ import { useGameStore } from '../store/gameStore';
 import { HowToPlayModal } from '../components/HowToPlayModal';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/Avatar';
-import AvatarPickerModal from '../components/AvatarPickerModal';
 import { useFriendRequests } from '../hooks/useFriendRequests';
 import { THEME } from '../utils/theme';
 
@@ -78,7 +77,7 @@ export default function HomeScreen() {
   const { createRoom, joinRoom, startGame } = useSocket();
   const { setPlayerName, roomId, roomInfo, myPlayerId, gameState, error, setError } =
     useGameStore();
-  const { profile, isGuest, updateProfile } = useAuth();
+  const { profile, isGuest } = useAuth();
   const { friendRequestCount } = useFriendRequests(profile?.id);
 
   // Mode selector
@@ -91,8 +90,6 @@ export default function HomeScreen() {
   const [maxPlayers, setMaxPlayers] = useState<2 | 3 | 4>(4);
   const [lastAction, setLastAction] = useState<'create' | 'join' | null>(null);
   const [copied, setCopied] = useState(false);
-  const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
-  const [guestAvatarAlert, setGuestAvatarAlert] = useState(false);
 
   // AI flow state — pre-filled from profile
   const [aiName, setAiName] = useState('');
@@ -169,21 +166,6 @@ export default function HomeScreen() {
         avatarId: profile?.avatarId ?? 'avatar_01',
       },
     });
-  }
-
-  async function handleAvatarSelect(avatarId: string) {
-    try {
-      await updateProfile({ avatarId });
-    } catch { /* ignore */ }
-  }
-
-  function handleAvatarPress() {
-    if (isGuest) {
-      setGuestAvatarAlert(true);
-      setTimeout(() => setGuestAvatarAlert(false), 3000);
-    } else {
-      setAvatarPickerVisible(true);
-    }
   }
 
   const isHost = roomInfo?.players[0]?.playerId === myPlayerId;
@@ -304,7 +286,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
             {/* Avatar / Profile button */}
-            <TouchableOpacity style={styles.navIconBtn} onPress={handleAvatarPress}>
+            <TouchableOpacity style={styles.navIconBtn} onPress={() => router.push('/profile')}>
               <View>
                 <Avatar
                   avatarId={profile?.avatarId ?? 'avatar_01'}
@@ -321,12 +303,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        {guestAvatarAlert && (
-          <View style={styles.guestAvatarAlert}>
-            <Text style={styles.guestAvatarAlertText}>Create an account to choose your avatar</Text>
-          </View>
-        )}
-
         {/* ── Mode selector ── */}
         <View style={styles.modeRow}>
           <TouchableOpacity
@@ -548,16 +524,6 @@ export default function HomeScreen() {
       </ScrollView>
 
       <HowToPlayModal visible={showHowToPlay} onClose={() => setShowHowToPlay(false)} />
-
-      {!isGuest && profile && (
-        <AvatarPickerModal
-          visible={avatarPickerVisible}
-          currentAvatarId={profile.avatarId}
-          colourHex={profile.colourHex}
-          onSelect={handleAvatarSelect}
-          onClose={() => setAvatarPickerVisible(false)}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -652,21 +618,6 @@ const styles = StyleSheet.create({
   lockOverlayText: {
     fontSize: 10,
   },
-  guestAvatarAlert: {
-    backgroundColor: THEME.cardBackground,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.2)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 12,
-  },
-  guestAvatarAlertText: {
-    color: THEME.textSecondary,
-    fontSize: 13,
-    textAlign: 'center',
-  },
-
   // ── Mode selector ─────────────────────────────────────────
   modeRow: {
     flexDirection: 'row',

@@ -40,6 +40,10 @@ export async function recordGameStats(result: GameResult): Promise<void> {
   const newStreak = won ? current.current_streak + 1 : 0
   const newLongestStreak = Math.max(current.longest_streak, newStreak)
 
+  // Update recent results — keep last 10
+  const currentResults: number[] = current.recent_results ?? []
+  const newResults = [result.placement, ...currentResults].slice(0, 10)
+
   // Nemesis calculation — if lost to same opponent more than current nemesis
   let nemesisUpdate: Record<string, unknown> = {}
   if (!won && result.opponentId) {
@@ -97,6 +101,7 @@ export async function recordGameStats(result: GameResult): Promise<void> {
         : current.fastest_win_turns,
       longest_game_turns: Math.max(current.longest_game_turns, result.turnsPlayed),
       favourite_suit: (won && result.suitWonWith) ? result.suitWonWith : current.favourite_suit,
+      recent_results: newResults,
       ...nemesisUpdate,
       ...victimUpdate,
       updated_at: new Date().toISOString(),

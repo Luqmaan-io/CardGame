@@ -35,9 +35,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    let mounted = true
+
+    // Safety timeout — if Supabase takes more than 8 seconds,
+    // force the app to continue as unauthenticated
+    const safetyTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Supabase session check timed out — continuing as guest')
+        setIsLoading(false)
+      }
+    }, 8000)
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return
+      clearTimeout(safetyTimeout)
+
       if (session?.user) {
+        // Clear any stale guest state
+        if (Platform.OS === 'web') {
+          localStorage.removeItem('guest_profile')
+        }
+        setIsGuest(false)
         setSession(session)
         setUser(session.user)
         fetchProfile(session.user.id)
@@ -53,6 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } catch {}
           }
         }
+        setIsLoading(false)
+      }
+    }).catch((err) => {
+      console.error('Session check failed:', err)
+      if (mounted) {
+        clearTimeout(safetyTimeout)
         setIsLoading(false)
       }
     })
@@ -80,27 +105,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      clearTimeout(safetyTimeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
+    try {
+      const profilePromise = supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
 
-    if (data) {
-      setProfile({
-        id: data.id,
-        username: data.username,
-        avatarId: data.avatar_id,
-        friendCode: data.friend_code,
-        colourHex: data.colour_hex,
-        isGuest: data.is_guest,
-      })
+      // Timeout after 6 seconds
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 6000)
+      )
+
+      const { data, error } = await Promise.race([profilePromise, timeoutPromise])
+
+      if (data) {
+        setProfile({
+          id: data.id,
+          username: data.username,
+          avatarId: data.avatar_id,
+          friendCode: data.friend_code,
+          colourHex: data.colour_hex,
+          isGuest: data.is_guest,
+        })
+      } else {
+        console.warn('Profile fetch failed:', error)
+      }
+    } catch (err) {
+      console.warn('Profile fetch error:', err)
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const signUp = async (email: string, password: string, username: string) => {

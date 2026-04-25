@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { THEME } from '../utils/theme';
@@ -50,8 +50,24 @@ function LoadingScreen() {
 
 function RootLayoutInner() {
   const { isLoading } = useAuth();
+  const [forceShow, setForceShow] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  if (isLoading) return <LoadingScreen />;
+  useEffect(() => {
+    if (!isLoading) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      return;
+    }
+    timeoutRef.current = setTimeout(() => {
+      console.warn('App loading timeout — forcing to auth screen');
+      setForceShow(true);
+    }, 10000);
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [isLoading]);
+
+  if (isLoading && !forceShow) return <LoadingScreen />;
 
   return (
     <>

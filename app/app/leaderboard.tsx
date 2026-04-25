@@ -14,12 +14,12 @@ import { useAuth } from '../context/AuthContext'
 import Avatar from '../components/Avatar'
 import { THEME } from '../utils/theme'
 import {
-  getGlobalLeaderboard,
+  getRankedLeaderboard,
   getFriendsLeaderboard,
   type LeaderboardEntry,
 } from '../lib/friends'
 
-type Tab = 'global' | 'friends'
+type Tab = 'ranked' | 'friends'
 
 const RANK_COLOURS: Record<number, string> = {
   1: '#EF9F27',
@@ -140,18 +140,18 @@ export default function LeaderboardScreen() {
   const router = useRouter()
   const { user, profile } = useAuth()
 
-  const [tab, setTab] = useState<Tab>('global')
-  const [globalData, setGlobalData] = useState<LeaderboardEntry[]>([])
+  const [tab, setTab] = useState<Tab>('ranked')
+  const [rankedData, setRankedData] = useState<LeaderboardEntry[]>([])
   const [friendsData, setFriendsData] = useState<LeaderboardEntry[]>([])
-  const [loadingGlobal, setLoadingGlobal] = useState(true)
+  const [loadingRanked, setLoadingRanked] = useState(true)
   const [loadingFriends, setLoadingFriends] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
-  const loadGlobal = useCallback(async () => {
-    setLoadingGlobal(true)
-    const data = await getGlobalLeaderboard(50)
-    setGlobalData(data)
-    setLoadingGlobal(false)
+  const loadRanked = useCallback(async () => {
+    setLoadingRanked(true)
+    const data = await getRankedLeaderboard(50)
+    setRankedData(data)
+    setLoadingRanked(false)
   }, [])
 
   const loadFriends = useCallback(async () => {
@@ -162,7 +162,7 @@ export default function LeaderboardScreen() {
     setLoadingFriends(false)
   }, [user])
 
-  useEffect(() => { loadGlobal() }, [loadGlobal])
+  useEffect(() => { loadRanked() }, [loadRanked])
 
   useEffect(() => {
     if (tab === 'friends') loadFriends()
@@ -170,13 +170,13 @@ export default function LeaderboardScreen() {
 
   async function handleRefresh() {
     setRefreshing(true)
-    if (tab === 'global') await loadGlobal()
+    if (tab === 'ranked') await loadRanked()
     else await loadFriends()
     setRefreshing(false)
   }
 
-  const currentData = tab === 'global' ? globalData : friendsData
-  const isLoading = tab === 'global' ? loadingGlobal : loadingFriends
+  const currentData = tab === 'ranked' ? rankedData : friendsData
+  const isLoading = tab === 'ranked' ? loadingRanked : loadingFriends
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -191,14 +191,14 @@ export default function LeaderboardScreen() {
 
       {/* Tab pills */}
       <View style={styles.tabs}>
-        {(['global', 'friends'] as Tab[]).map((t) => (
+        {(['ranked', 'friends'] as Tab[]).map((t) => (
           <TouchableOpacity
             key={t}
             style={[styles.tabPill, tab === t && styles.tabPillActive]}
             onPress={() => setTab(t)}
           >
             <Text style={[styles.tabPillText, tab === t && styles.tabPillTextActive]}>
-              {t === 'global' ? '🌍 Global' : '👥 Friends'}
+              {t === 'ranked' ? '⚡ Ranked' : '👥 Friends'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -218,7 +218,7 @@ export default function LeaderboardScreen() {
               </TouchableOpacity>
             </>
           ) : (
-            <Text style={styles.emptyText}>No data yet — play some games!</Text>
+            <Text style={styles.emptyText}>Play Quick Play to appear on the ranked leaderboard</Text>
           )}
         </View>
       ) : (

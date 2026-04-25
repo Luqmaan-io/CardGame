@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -70,18 +70,27 @@ const TIMER_OPTIONS = [
   { label: 'None', value: 0,   description: 'No limit' },
 ];
 
-type Mode = 'none' | 'online' | 'ai';
+type Mode = 'none' | 'quickplay' | 'private' | 'ai';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { createRoom, joinRoom, startGame } = useSocket();
-  const { setPlayerName, roomId, roomInfo, myPlayerId, gameState, error, setError } =
+  const { setPlayerName, roomId, roomInfo, myPlayerId, gameState, error, setError, socket } =
     useGameStore();
   const { profile, isGuest } = useAuth();
   const { friendRequestCount } = useFriendRequests(profile?.id);
 
   // Mode selector
   const [mode, setMode] = useState<Mode>('none');
+
+  // Matchmaking state
+  const [inQueue, setInQueue] = useState(false);
+  const [playersInQueue, setPlayersInQueue] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [matchFound, setMatchFound] = useState(false);
+  const [matchPlayers, setMatchPlayers] = useState<{ id: string; name: string; avatarId: string; colourHex: string; isAI: boolean }[]>([]);
+  const [startCountdown, setStartCountdown] = useState(3);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Online flow state — pre-filled from profile
   const [createName, setCreateName] = useState('');
@@ -107,6 +116,71 @@ export default function HomeScreen() {
     }
   }, [profile?.username]);
 
+  // Matchmaking socket listeners
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('queue:joined', ({ waitTime }: { position: number; waitTime: number }) => {
+      setInQueue(true);
+      setTimeRemaining(waitTime);
+    });
+
+    socket.on('queue:update', ({ playersInQueue: count, estimatedWait }: { playersInQueue: number; position: number; estimatedWait: number }) => {
+      setPlayersInQueue(count);
+      setTimeRemaining(estimatedWait);
+    });
+
+    socket.on('queue:matched', ({ roomId: matchedRoomId, players }: { roomId: string; players: typeof matchPlayers }) => {
+      setMatchFound(true);
+      setMatchPlayers(players);
+      setStartCountdown(3);
+      useGameStore.getState().setRoom(matchedRoomId, profile?.id ?? '');
+      let count = 3;
+      countdownIntervalRef.current = setInterval(() => {
+        count--;
+        setStartCountdown(count);
+        if (count === 0) {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+          router.replace({ pathname: '/game', params: { mode: 'online', roomId: matchedRoomId, isRanked: 'true' } });
+        }
+      }, 1000);
+    });
+
+    socket.on('queue:failed', ({ reason }: { reason: string }) => {
+      setInQueue(false);
+      setMode('none');
+      setError(reason);
+    });
+
+    return () => {
+      socket.off('queue:joined');
+      socket.off('queue:update');
+      socket.off('queue:matched');
+      socket.off('queue:failed');
+    };
+  }, [socket, profile?.id]);
+
+  function handleJoinQueue() {
+    if (!socket) return;
+    setInQueue(false);
+    setMatchFound(false);
+    setPlayersInQueue(0);
+    socket.emit('queue:join', {
+      playerId: profile?.id ?? `guest_${Date.now()}`,
+      playerName: profile?.username ?? 'Player',
+      avatarId: profile?.avatarId ?? 'avatar_01',
+      colourHex: profile?.colourHex ?? '#378ADD',
+    });
+  }
+
+  function handleLeaveQueue() {
+    if (!socket) return;
+    socket.emit('queue:leave');
+    setInQueue(false);
+    setMode('none');
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+  }
+
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   const { width } = useWindowDimensions();
@@ -115,6 +189,12 @@ export default function HomeScreen() {
   useEffect(() => {
     if (gameState) router.replace('/game');
   }, [gameState]);
+
+  useEffect(() => {
+    if (mode === 'quickplay' && socket && !inQueue && !matchFound) {
+      handleJoinQueue();
+    }
+  }, [mode, socket]);
 
   // Auto-clear error after 5 seconds
   useEffect(() => {
@@ -306,22 +386,71 @@ export default function HomeScreen() {
         {/* ── Mode selector ── */}
         <View style={styles.modeRow}>
           <TouchableOpacity
-            style={[styles.modeBtn, mode === 'online' && styles.modeBtnActive]}
-            onPress={() => setMode(mode === 'online' ? 'none' : 'online')}
+            style={[styles.modeBtn, mode === 'quickplay' && styles.modeBtnActive]}
+            onPress={() => setMode(mode === 'quickplay' ? 'none' : 'quickplay')}
           >
-            <Text style={[styles.modeBtnText, mode === 'online' && styles.modeBtnTextActive]}>
-              Play Online
-            </Text>
+            <Text style={[styles.modeBtnTitle, mode === 'quickplay' && styles.modeBtnTitleActive]}>⚡ Quick Play</Text>
+            <Text style={[styles.modeBtnSub, mode === 'quickplay' && styles.modeBtnSubActive]}>Ranked • Global matchmaking</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === 'private' && styles.modeBtnActive]}
+            onPress={() => setMode(mode === 'private' ? 'none' : 'private')}
+          >
+            <Text style={[styles.modeBtnTitle, mode === 'private' && styles.modeBtnTitleActive]}>🔒 Private Game</Text>
+            <Text style={[styles.modeBtnSub, mode === 'private' && styles.modeBtnSubActive]}>Play with friends</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeBtn, mode === 'ai' && styles.modeBtnActive]}
             onPress={() => setMode(mode === 'ai' ? 'none' : 'ai')}
           >
-            <Text style={[styles.modeBtnText, mode === 'ai' && styles.modeBtnTextActive]}>
-              Play vs AI
-            </Text>
+            <Text style={[styles.modeBtnTitle, mode === 'ai' && styles.modeBtnTitleActive]}>🤖 vs AI</Text>
+            <Text style={[styles.modeBtnSub, mode === 'ai' && styles.modeBtnSubActive]}>Solo • Practice</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── Quick Play matchmaking screen ── */}
+        {mode === 'quickplay' && !matchFound && (
+          <View style={styles.matchmakingScreen}>
+            <Text style={styles.matchmakingTitle}>
+              {inQueue ? 'Finding players...' : 'Connecting...'}
+            </Text>
+            <View style={styles.pulseContainer}>
+              {[0, 1, 2, 3].map((i) => (
+                <View
+                  key={i}
+                  style={[styles.playerDot, { backgroundColor: playersInQueue > i ? THEME.gold : THEME.textMuted }]}
+                />
+              ))}
+            </View>
+            <Text style={styles.queueText}>{playersInQueue} / 4 players found</Text>
+            {inQueue && (
+              <Text style={styles.countdownText}>
+                Starting in {Math.ceil(timeRemaining / 1000)}s
+                {playersInQueue < 4 ? ' (AI will fill remaining slots)' : ''}
+              </Text>
+            )}
+            <TouchableOpacity onPress={handleLeaveQueue} style={styles.cancelBtn}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Match found countdown ── */}
+        {mode === 'quickplay' && matchFound && (
+          <View style={styles.matchFoundScreen}>
+            <Text style={styles.matchFoundTitle}>Match found!</Text>
+            <View style={styles.playersRow}>
+              {matchPlayers.map((p) => (
+                <View key={p.id} style={styles.matchPlayerSlot}>
+                  <Avatar avatarId={p.avatarId} size={48} colourHex={p.colourHex} />
+                  <Text style={styles.matchPlayerName} numberOfLines={1}>{p.name}</Text>
+                  {p.isAI && <Text style={styles.aiLabel}>AI</Text>}
+                </View>
+              ))}
+            </View>
+            <Text style={styles.startingText}>Starting in {startCountdown}...</Text>
+          </View>
+        )}
 
         {/* ── AI setup section ── */}
         {mode === 'ai' && (
@@ -386,8 +515,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ── Online section ── */}
-        {mode === 'online' && (
+        {/* ── Private Game section ── */}
+        {mode === 'private' && (
           <View style={[styles.cardsRow, wide && styles.cardsRowWide]}>
 
             {/* ── Create a room card ── */}
@@ -621,29 +750,144 @@ const styles = StyleSheet.create({
   // ── Mode selector ─────────────────────────────────────────
   modeRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
     marginBottom: 24,
   },
   modeBtn: {
     flex: 1,
-    paddingVertical: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
     borderRadius: 14,
     borderWidth: 2,
     borderColor: 'rgba(201,168,76,0.18)',
     backgroundColor: THEME.cardBackground,
     alignItems: 'center',
+    gap: 3,
   },
   modeBtnActive: {
     backgroundColor: THEME.surfaceBackground,
     borderColor: THEME.gold,
   },
+  modeBtnTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.textMuted,
+    textAlign: 'center',
+  },
+  modeBtnTitleActive: {
+    color: THEME.gold,
+  },
+  modeBtnSub: {
+    fontSize: 9,
+    color: THEME.textMuted,
+    textAlign: 'center',
+  },
+  modeBtnSubActive: {
+    color: THEME.textSecondary,
+  },
+  // keep old modeBtnText for any remaining usage
   modeBtnText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: THEME.textMuted,
   },
   modeBtnTextActive: {
     color: THEME.gold,
+  },
+
+  // ── Matchmaking ───────────────────────────────────────────
+  matchmakingScreen: {
+    backgroundColor: THEME.cardBackground,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.18)',
+    padding: 28,
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+  },
+  matchmakingTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: THEME.textPrimary,
+  },
+  pulseContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  playerDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  queueText: {
+    color: THEME.textSecondary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  countdownText: {
+    color: THEME.textMuted,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  cancelBtn: {
+    borderWidth: 1,
+    borderColor: THEME.danger,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  cancelBtnText: {
+    color: THEME.danger,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  matchFoundScreen: {
+    backgroundColor: THEME.cardBackground,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: THEME.gold,
+    padding: 28,
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+  },
+  matchFoundTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: THEME.gold,
+  },
+  playersRow: {
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  matchPlayerSlot: {
+    alignItems: 'center',
+    gap: 4,
+    width: 64,
+  },
+  matchPlayerName: {
+    color: THEME.textPrimary,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  aiLabel: {
+    color: THEME.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    backgroundColor: THEME.surfaceBackground,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  startingText: {
+    color: THEME.gold,
+    fontSize: 16,
+    fontWeight: '700',
   },
 
   // ── Lobby layout ──────────────────────────────────────────

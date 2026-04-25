@@ -3,6 +3,16 @@
  
 ---
  
+## Game Modes
+
+Powerstack has three game modes:
+
+- **Quick Play** — Global matchmaking. The server finds up to 4 players from the global queue. Players wait up to 60 seconds for others to join. Any empty slots after 60 seconds are filled with AI opponents. Quick Play wins count toward the global ranked leaderboard. Players cannot choose their opponents.
+- **Private Game** — Create or join a room using a room code. Play with friends. Results count toward overall stats (games played, wins) but NOT the global ranked leaderboard.
+- **vs AI** — Local single player against AI opponents. Results count toward overall stats but NOT the global ranked leaderboard.
+
+---
+
 ## Overview
  
 - **Players:** 2–4

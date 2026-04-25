@@ -192,6 +192,41 @@ export async function getGlobalLeaderboard(
   }))
 }
 
+// Ranked leaderboard — Quick Play wins only
+export async function getRankedLeaderboard(
+  limit = 50
+): Promise<LeaderboardEntry[]> {
+  const { data } = await supabase
+    .from('player_stats')
+    .select(`
+      id,
+      ranked_wins,
+      ranked_games_played,
+      ranked_win_rate,
+      ranked_current_streak,
+      ranked_longest_streak,
+      profiles(username, avatar_id, colour_hex)
+    `)
+    .gt('ranked_games_played', 0)
+    .order('ranked_wins', { ascending: false })
+    .limit(limit)
+
+  if (!data) return []
+
+  return data.map((row, index) => ({
+    id: row.id,
+    username: (row.profiles as { username: string } | null)?.username ?? 'Unknown',
+    avatarId: (row.profiles as { avatar_id: string } | null)?.avatar_id ?? 'avatar_01',
+    colourHex: (row.profiles as { colour_hex: string } | null)?.colour_hex ?? '#378ADD',
+    gamesWon: (row as { ranked_wins: number }).ranked_wins,
+    gamesPlayed: (row as { ranked_games_played: number }).ranked_games_played,
+    winRate: (row as { ranked_win_rate: number }).ranked_win_rate,
+    currentStreak: (row as { ranked_current_streak: number }).ranked_current_streak,
+    longestStreak: (row as { ranked_longest_streak: number }).ranked_longest_streak,
+    rank: index + 1,
+  }))
+}
+
 // Friends leaderboard — includes the current user
 export async function getFriendsLeaderboard(
   userId: string

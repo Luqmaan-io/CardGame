@@ -4,6 +4,8 @@ export type GameResult = {
   userId: string
   isGuest: boolean
   placement: number  // 1 = 1st place (win), 2+ = loss
+  isRanked: boolean
+  gameMode: 'quickplay' | 'private' | 'ai'
   turnsPlayed: number
   maxCardsHeld: number
   cardsDrawn: number
@@ -74,6 +76,23 @@ export async function recordGameStats(result: GameResult): Promise<void> {
     }
   }
 
+  // Ranked stats — only update when game was a Quick Play ranked match
+  let rankedUpdate: Record<string, unknown> = {}
+  if (result.isRanked) {
+    const newRankedGamesPlayed = (current.ranked_games_played ?? 0) + 1
+    const newRankedWins = (current.ranked_wins ?? 0) + (won ? 1 : 0)
+    const newRankedWinRate = Math.round((newRankedWins / newRankedGamesPlayed) * 100) / 100
+    const newRankedStreak = won ? (current.ranked_current_streak ?? 0) + 1 : 0
+    const newRankedLongestStreak = Math.max(current.ranked_longest_streak ?? 0, newRankedStreak)
+    rankedUpdate = {
+      ranked_wins: newRankedWins,
+      ranked_games_played: newRankedGamesPlayed,
+      ranked_win_rate: newRankedWinRate,
+      ranked_current_streak: newRankedStreak,
+      ranked_longest_streak: newRankedLongestStreak,
+    }
+  }
+
   await supabase
     .from('player_stats')
     .update({
@@ -104,6 +123,7 @@ export async function recordGameStats(result: GameResult): Promise<void> {
       recent_results: newResults,
       ...nemesisUpdate,
       ...victimUpdate,
+      ...rankedUpdate,
       updated_at: new Date().toISOString(),
     })
     .eq('id', result.userId)

@@ -13,6 +13,7 @@ import { Hand } from './Hand';
 import { DiscardPile } from './DiscardPile';
 import { TurnTimer } from './TurnTimer';
 import Avatar from './Avatar';
+import { ChatButton } from './ChatButton';
 import { THEME } from '../utils/theme';
 import type { GameState, Card as CardType } from '../../engine/types';
 
@@ -92,6 +93,9 @@ interface RoundTableProps {
   // Reactions
   floatingReactions?: FloatingReaction[];
   onReact?: (reactionId: string) => void;
+  // Chat
+  chatMessages?: Record<string, string>;
+  onSendChat?: (messageId: string, messageText: string) => void;
   // Multi-perspective foundation — defaults to 'bottom'
   viewAngle?: ViewAngle;
 }
@@ -546,6 +550,8 @@ export function RoundTable({
   turnDuration = 30,
   floatingReactions = [],
   onReact,
+  chatMessages = {},
+  onSendChat,
   viewAngle = 'bottom',
 }: RoundTableProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -876,6 +882,11 @@ export function RoundTable({
                   visibleCardCount={vCount}
                   isFlashing={flashingPlayerId === player.id}
                 />
+                {chatMessages[player.id] && (
+                  <View style={tableStyles.chatBubble}>
+                    <Text style={tableStyles.chatBubbleText}>{chatMessages[player.id]}</Text>
+                  </View>
+                )}
               </View>
             );
           })}
@@ -893,6 +904,11 @@ export function RoundTable({
               }}
               pointerEvents="none"
             >
+              {chatMessages[myPlayer.id] && (
+                <View style={[tableStyles.chatBubble, { top: -44 }]}>
+                  <Text style={tableStyles.chatBubbleText}>{chatMessages[myPlayer.id]}</Text>
+                </View>
+              )}
               <Avatar
                 avatarId={(myPlayer as { avatarId?: string }).avatarId ?? 'avatar_01'}
                 size={32}
@@ -1005,6 +1021,25 @@ export function RoundTable({
           />
         );
       })}
+
+      {/* ── Chat button — near human player slot ────────────────────────────── */}
+      {onSendChat && (() => {
+        const humanTablePos = getTablePos(90, SLOT_RADIUS);
+        const humanScreen = tableToScreen(humanTablePos.x, humanTablePos.y);
+        const reactionOffset = onReact ? 44 : 0;
+        return (
+          <View
+            style={{
+              position: 'absolute',
+              left: humanScreen.x + 44 + reactionOffset,
+              top: humanScreen.y - 18,
+              zIndex: 20,
+            }}
+          >
+            <ChatButton onSendMessage={onSendChat} />
+          </View>
+        );
+      })()}
 
       {/* ── Reaction button — near human player slot ─────────────────────────── */}
       {onReact && (() => {
@@ -1204,6 +1239,22 @@ const tableStyles = StyleSheet.create({
     color: THEME.gold,
     fontSize: 13,
     fontWeight: '600',
+  },
+  chatBubble: {
+    position: 'absolute',
+    top: -40,
+    backgroundColor: 'rgba(13, 27, 42, 0.92)',
+    borderRadius: 10,
+    borderWidth: 0.5,
+    borderColor: THEME.gold,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    maxWidth: 140,
+    zIndex: 20,
+  },
+  chatBubbleText: {
+    color: THEME.textPrimary,
+    fontSize: 11,
   },
 });
 

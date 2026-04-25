@@ -7,6 +7,7 @@ export interface RoomPlayer {
   colourHex: string;
   userId?: string;
   avatarId?: string;
+  isAI?: boolean;
 }
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished';
@@ -18,4 +19,5 @@ export interface Room {
   maxPlayers: 2 | 3 | 4;
   status: RoomStatus;
   turnDuration: number;  // seconds; 0 = no limit
+  isRanked?: boolean;
 }

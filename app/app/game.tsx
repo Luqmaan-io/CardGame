@@ -59,8 +59,9 @@ function dealIntervalMs(playerCount: number): number {
 
 export default function GameScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string; playerName?: string; aiCount?: string; avatarId?: string; turnDuration?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; playerName?: string; aiCount?: string; avatarId?: string; turnDuration?: string; isRanked?: string }>();
   const isLocalMode = params.mode === 'local';
+  const isRanked = params.isRanked === 'true';
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
@@ -159,6 +160,10 @@ export default function GameScreen() {
 
   // ── Floating reactions ────────────────────────────────────────────────────
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+
+  // ── Chat bubbles ──────────────────────────────────────────────────────────
+  const [chatMessages, setChatMessages] = useState<Record<string, string>>({});
+  const chatTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // ── Auth context (for stats recording) ────────────────────────────────────
   const { profile, isGuest } = useAuth();
@@ -446,6 +451,30 @@ export default function GameScreen() {
     useGameStore.getState().setPendingReaction(null);
     setTimeout(() => setFloatingReactions((prev) => prev.filter((r) => r.id !== id)), 2500);
   }, [pendingReaction]);
+
+  // ── Chat: listen for incoming messages, show bubble for 3s ──────────────
+  useEffect(() => {
+    const { socket: s } = useGameStore.getState();
+    if (!s) return;
+    const handler = ({ playerId, messageText }: { playerId: string; playerName: string; messageText: string }) => {
+      setChatMessages((prev) => ({ ...prev, [playerId]: messageText }));
+      if (chatTimeoutsRef.current[playerId]) clearTimeout(chatTimeoutsRef.current[playerId]);
+      chatTimeoutsRef.current[playerId] = setTimeout(() => {
+        setChatMessages((prev) => {
+          const next = { ...prev };
+          delete next[playerId];
+          return next;
+        });
+      }, 3000);
+    };
+    s.on('game:chat-received', handler);
+    return () => { s.off('game:chat-received', handler); };
+  }, []);
+
+  function handleSendChat(messageId: string, messageText: string) {
+    const { socket: s, roomId: rId } = useGameStore.getState();
+    s?.emit('game:chat', { roomId: rId, messageId, messageText });
+  }
 
   // ── Online: suit picker on declare-suit ───────────────────────────────────
   useEffect(() => {
@@ -764,6 +793,8 @@ export default function GameScreen() {
       userId: profile.id,
       isGuest: false,
       placement: myPlacement,
+      isRanked: isRanked,
+      gameMode: isLocalMode ? 'ai' : (isRanked ? 'quickplay' : 'private'),
       turnsPlayed: gameStatsRef.current.turnsPlayed,
       maxCardsHeld: gameStatsRef.current.maxCardsHeld,
       cardsDrawn: gameStatsRef.current.cardsDrawn,
@@ -1241,6 +1272,8 @@ export default function GameScreen() {
         turnDuration={turnDuration}
         floatingReactions={floatingReactions}
         onReact={handleReact}
+        chatMessages={chatMessages}
+        onSendChat={isLocalMode ? undefined : handleSendChat}
       />
 
       <AnimationOverlay ref={overlayRef} />

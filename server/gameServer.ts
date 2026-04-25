@@ -3,6 +3,7 @@ import { Suit, Card, GameState } from '../engine/types';
 import { createDeck, shuffleDeck, dealCards } from '../engine/deck';
 import { isValidCombo } from '../engine/validation';
 import { applyPlay, advanceTurn, drawCard, declareOnCards, applyTimeout } from '../engine/state';
+import { pickAIMove } from '../engine/ai';
 import {
   createRoom,
   joinRoom,
@@ -12,6 +13,26 @@ import {
   getRoom,
 } from './roomManager';
 import { Room } from './types';
+
+// ─── Matchmaking queue ────────────────────────────────────────────────────────
+
+type QueueEntry = {
+  socketId: string;
+  playerId: string;
+  playerName: string;
+  avatarId: string;
+  colourHex: string;
+  joinedAt: number;
+};
+
+const matchmakingQueue: QueueEntry[] = [];
+let matchmakingTimer: NodeJS.Timeout | null = null;
+
+const QUEUE_WAIT_MS = 60000;
+const TARGET_PLAYERS = 4;
+const MIN_PLAYERS = 2;
+
+let ioRef: Server;  // set on first registerGameHandlers call
 
 // ─── Server-side turn timer ───────────────────────────────────────────────────
 
@@ -28,8 +49,20 @@ function clearTurnTimer(roomId: string): void {
 function startTurnTimer(roomId: string, io: Server): void {
   clearTurnTimer(roomId);
   const room = getRoom(roomId);
-  const duration = room?.turnDuration ?? 30;
+  if (!room) return;
+  const duration = room.turnDuration ?? 30;
   if (duration === 0) return;  // no limit — don't start timer
+
+  // In ranked rooms, check if it's an AI's turn and handle immediately
+  if (room.isRanked && room.state) {
+    const currentPlayer = room.state.players[room.state.currentPlayerIndex];
+    const roomPlayer = room.players.find((p) => p.playerId === currentPlayer?.id);
+    if (roomPlayer?.isAI) {
+      handleRankedAITurn(roomId, io);
+      return;
+    }
+  }
+
   const timer = setTimeout(() => handleTimeout(roomId, io), duration * 1000);
   roomTimers.set(roomId, timer);
 }
@@ -112,7 +145,153 @@ function getPlayerName(playerId: string, room: Room): string {
   return room.players.find((p) => p.playerId === playerId)?.name ?? playerId.slice(0, 8);
 }
 
+// ─── Matchmaking helpers ──────────────────────────────────────────────────────
+
+function broadcastQueueUpdate(io: Server): void {
+  matchmakingQueue.forEach((entry, index) => {
+    io.to(entry.socketId).emit('queue:update', {
+      playersInQueue: matchmakingQueue.length,
+      position: index + 1,
+      estimatedWait: Math.max(0, QUEUE_WAIT_MS - (Date.now() - entry.joinedAt)),
+    });
+  });
+}
+
+function startMatchmakingGame(io: Server): void {
+  if (matchmakingTimer) {
+    clearTimeout(matchmakingTimer);
+    matchmakingTimer = null;
+  }
+
+  const players = matchmakingQueue.splice(0, TARGET_PLAYERS);
+
+  const roomId = `ranked_${Date.now()}`;
+  const room: Room = {
+    id: roomId,
+    players: players.map((p) => ({
+      socketId: p.socketId,
+      playerId: p.playerId,
+      name: p.playerName,
+      avatarId: p.avatarId,
+      colourHex: p.colourHex,
+      isAI: false,
+    })),
+    maxPlayers: TARGET_PLAYERS,
+    status: 'playing',
+    state: null,
+    isRanked: true,
+    turnDuration: 30,
+  };
+
+  const aiNames = ['Alex', 'Jordan', 'Casey', 'Morgan'];
+  const aiAvatars = ['avatar_03', 'avatar_06', 'avatar_11', 'avatar_14'];
+  const aiColours = ['#E24B4A', '#639922', '#7F77DD', '#EF9F27'];
+
+  while (room.players.length < TARGET_PLAYERS) {
+    const aiIndex = room.players.filter((p) => p.isAI).length;
+    room.players.push({
+      socketId: `ai_${aiIndex}`,
+      playerId: `ai_${aiIndex}`,
+      name: aiNames[aiIndex] ?? `AI ${aiIndex + 1}`,
+      avatarId: aiAvatars[aiIndex] ?? 'avatar_01',
+      colourHex: aiColours[aiIndex] ?? '#378ADD',
+      isAI: true,
+    });
+  }
+
+  updateRoom(room);
+
+  players.forEach((p) => {
+    const playerSocket = io.sockets.sockets.get(p.socketId);
+    if (playerSocket) playerSocket.join(roomId);
+  });
+
+  const state = initGameState(room);
+  const timedState = withTimer(state);
+  const updatedRoom: Room = { ...room, state: timedState };
+  updateRoom(updatedRoom);
+
+  io.to(roomId).emit('queue:matched', {
+    roomId,
+    players: room.players.map((p) => ({
+      id: p.playerId,
+      name: p.name,
+      avatarId: p.avatarId,
+      colourHex: p.colourHex,
+      isAI: p.isAI ?? false,
+    })),
+  });
+
+  setTimeout(() => {
+    const r = getRoom(roomId);
+    if (!r || !r.state) return;
+    io.to(roomId).emit('game:state', { state: r.state });
+    startTurnTimer(roomId, io);
+    handleRankedAITurn(roomId, io);
+  }, 3000);
+
+  if (matchmakingQueue.length >= MIN_PLAYERS) {
+    startMatchmakingGame(io);
+  }
+}
+
+async function handleRankedAITurn(roomId: string, io: Server): Promise<void> {
+  const room = getRoom(roomId);
+  if (!room || !room.state || !room.isRanked) return;
+
+  const currentPlayer = room.state.players[room.state.currentPlayerIndex];
+  if (!currentPlayer) return;
+  const roomPlayer = room.players.find((p) => p.playerId === currentPlayer.id);
+  if (!roomPlayer?.isAI) return;
+
+  await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
+
+  const freshRoom = getRoom(roomId);
+  if (!freshRoom || !freshRoom.state) return;
+  const fresh = freshRoom.state;
+  const freshPlayer = fresh.players[fresh.currentPlayerIndex];
+  if (!freshPlayer || freshPlayer.id !== currentPlayer.id) return;
+
+  const move = pickAIMove(fresh);
+  let newState: GameState;
+  if (move === 'draw') {
+    const drawCount = fresh.pendingPickup > 0 ? fresh.pendingPickup : 1;
+    const drawnState = drawCard(drawCount, fresh);
+    newState = advanceTurn(drawnState);
+  } else {
+    const declaredSuit = move.some((c) => c.rank === 'A')
+      ? getBestSuit(freshPlayer.hand)
+      : null;
+    const playedState = applyPlay(move, declaredSuit, fresh);
+    if (playedState.currentPlayerHasActed && playedState.phase !== 'game-over') {
+      newState = advanceTurn(playedState);
+    } else {
+      newState = playedState;
+    }
+  }
+
+  newState = newState.phase === 'game-over' ? newState : withTimer(newState);
+  const updated: Room = { ...freshRoom, state: newState, status: newState.phase === 'game-over' ? 'finished' : 'playing' };
+  updateRoom(updated);
+  io.to(roomId).emit('game:state', { state: newState });
+
+  if (newState.phase === 'game-over') return;
+
+  clearTurnTimer(roomId);
+  startTurnTimer(roomId, io);
+  // If next player is also AI, handle their turn
+  handleRankedAITurn(roomId, io);
+}
+
+function getBestSuit(hand: Card[]): Suit {
+  const counts: Record<string, number> = {};
+  hand.forEach((c) => { counts[c.suit] = (counts[c.suit] ?? 0) + 1; });
+  const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return (best?.[0] ?? 'hearts') as Suit;
+}
+
 export function registerGameHandlers(io: Server, socket: Socket): void {
+  ioRef = io;
   // room:create — { maxPlayers: 2 | 3 | 4, name, userId?, colourHex?, avatarId?, turnDuration? }
   socket.on('room:create', (data: { maxPlayers: 2 | 3 | 4; name: string; userId?: string; colourHex?: string; avatarId?: string; turnDuration?: number }) => {
     const maxPlayers = data.maxPlayers ?? 4;
@@ -432,8 +611,81 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     io.to(data.roomId).emit('game:reaction', { playerId: data.playerId, reactionId: data.reactionId });
   });
 
+  // game:chat — { messageId, messageText }
+  socket.on('game:chat', ({ messageText }: { messageId: string; messageText: string }) => {
+    const room = getRoomBySocket(socket.id);
+    if (!room) return;
+    const player = room.players.find((p) => p.socketId === socket.id);
+    if (!player) return;
+    io.to(room.id).emit('game:chat-received', {
+      playerId: player.playerId,
+      playerName: player.name,
+      messageText,
+    });
+  });
+
+  // queue:join — { playerId, playerName, avatarId, colourHex }
+  socket.on('queue:join', ({ playerId, playerName, avatarId, colourHex }: {
+    playerId: string; playerName: string; avatarId: string; colourHex: string;
+  }) => {
+    if (matchmakingQueue.find((e) => e.socketId === socket.id)) return;
+
+    matchmakingQueue.push({
+      socketId: socket.id,
+      playerId,
+      playerName,
+      avatarId,
+      colourHex,
+      joinedAt: Date.now(),
+    });
+
+    socket.emit('queue:joined', {
+      position: matchmakingQueue.length,
+      waitTime: QUEUE_WAIT_MS,
+    });
+
+    broadcastQueueUpdate(io);
+
+    if (matchmakingQueue.length >= TARGET_PLAYERS) {
+      startMatchmakingGame(io);
+      return;
+    }
+
+    if (!matchmakingTimer) {
+      matchmakingTimer = setTimeout(() => {
+        matchmakingTimer = null;
+        if (matchmakingQueue.length >= MIN_PLAYERS) {
+          startMatchmakingGame(io);
+        } else {
+          matchmakingQueue.forEach((entry) => {
+            io.to(entry.socketId).emit('queue:failed', {
+              reason: 'Not enough players found. Try again or play vs AI.',
+            });
+          });
+          matchmakingQueue.length = 0;
+        }
+      }, QUEUE_WAIT_MS);
+    }
+  });
+
+  // queue:leave
+  socket.on('queue:leave', () => {
+    const index = matchmakingQueue.findIndex((e) => e.socketId === socket.id);
+    if (index !== -1) {
+      matchmakingQueue.splice(index, 1);
+      broadcastQueueUpdate(io);
+    }
+  });
+
   // disconnect
   socket.on('disconnect', () => {
+    // Remove from matchmaking queue if present
+    const queueIndex = matchmakingQueue.findIndex((e) => e.socketId === socket.id);
+    if (queueIndex !== -1) {
+      matchmakingQueue.splice(queueIndex, 1);
+      broadcastQueueUpdate(io);
+    }
+
     const room = getRoomBySocket(socket.id);
     if (!room) return;
 

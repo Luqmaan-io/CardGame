@@ -650,6 +650,18 @@ export default function HomeScreen() {
           <Text style={styles.howToPlayBtnText}>? How to play</Text>
         </TouchableOpacity>
 
+        {/* ── Landing page link ── */}
+        {Platform.OS === 'web' && (
+          <TouchableOpacity
+            onPress={() => { if (typeof window !== 'undefined') window.open('/landing.html', '_blank'); }}
+            style={{ marginTop: 24, marginBottom: 8, alignItems: 'center' }}
+          >
+            <Text style={{ color: THEME.textMuted, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' }}>
+              What is Powerstack?
+            </Text>
+          </TouchableOpacity>
+        )}
+
       </ScrollView>
 
       <HowToPlayModal visible={showHowToPlay} onClose={() => setShowHowToPlay(false)} />

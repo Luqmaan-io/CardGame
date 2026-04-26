@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Powerstack — The Card Game That Thinks Back</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#C9A84C;
+  --gold-light:#E8C97A;
+  --navy:#0D1B2A;
+  --navy-deep:#070C14;
+  --navy-mid:#112240;
+  --cream:#F0E6D3;
+  --cream-muted:#9BA8BB;
+  --felt:#0B3D2E;
+  --danger:#E24B4A;
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--navy-deep);
+  color:var(--cream);
+  font-family:'DM Sans',sans-serif;
+  font-weight:300;
+  line-height:1.7;
+  overflow-x:hidden;
+}
+
+/* NAV */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:1.25rem 2rem;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:0.5px solid rgba(201,168,76,0.15);
+  background:rgba(7,12,20,0.85);
+  backdrop-filter:blur(12px);
+}
+.nav-logo{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.4rem;font-weight:600;letter-spacing:0.08em;
+  color:var(--gold);text-decoration:none;
+}
+.nav-links{display:flex;gap:2rem;align-items:center}
+.nav-links a{
+  color:var(--cream-muted);font-size:0.85rem;letter-spacing:0.06em;
+  text-decoration:none;text-transform:uppercase;
+  transition:color 0.2s;
+}
+.nav-links a:hover{color:var(--cream)}
+.nav-cta{
+  background:var(--gold);color:var(--navy-deep);
+  padding:0.55rem 1.4rem;border-radius:2px;
+  font-size:0.8rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;
+  text-decoration:none;transition:background 0.2s;
+}
+.nav-cta:hover{background:var(--gold-light)}
+
+/* HERO */
+.hero{
+  min-height:100vh;
+  display:grid;place-items:center;
+  position:relative;overflow:hidden;
+  padding:8rem 2rem 6rem;
+}
+.hero-bg{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 60% 40%, rgba(11,61,46,0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 80%, rgba(201,168,76,0.08) 0%, transparent 50%),
+    var(--navy-deep);
+}
+.hero-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px);
+  background-size:60px 60px;
+}
+.hero-content{
+  position:relative;z-index:2;
+  max-width:900px;
+  text-align:center;
+}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:0.5rem;
+  border:0.5px solid rgba(201,168,76,0.3);
+  padding:0.4rem 1rem;border-radius:2px;
+  font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:2.5rem;
+  animation:fadeUp 0.8s ease both;
+}
+.eyebrow-dot{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--gold);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+.hero-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(3.5rem,8vw,7rem);
+  font-weight:300;line-height:1.05;
+  letter-spacing:-0.01em;
+  margin-bottom:1.5rem;
+  animation:fadeUp 0.8s 0.15s ease both;
+}
+.hero-title em{
+  font-style:italic;color:var(--gold);
+}
+.hero-title .line-break{display:block}
+
+.hero-sub{
+  font-size:1.1rem;font-weight:300;
+  color:var(--cream-muted);line-height:1.8;
+  max-width:560px;margin:0 auto 3rem;
+  animation:fadeUp 0.8s 0.3s ease both;
+}
+
+.hero-actions{
+  display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;
+  animation:fadeUp 0.8s 0.45s ease both;
+}
+.btn-primary{
+  background:var(--gold);color:var(--navy-deep);
+  padding:0.9rem 2.2rem;border-radius:2px;
+  font-size:0.85rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;
+  text-decoration:none;transition:all 0.2s;
+  display:inline-flex;align-items:center;gap:0.5rem;
+}
+.btn-primary:hover{background:var(--gold-light);transform:translateY(-1px)}
+.btn-secondary{
+  border:0.5px solid rgba(201,168,76,0.4);color:var(--cream);
+  padding:0.9rem 2.2rem;border-radius:2px;
+  font-size:0.85rem;font-weight:400;letter-spacing:0.08em;text-transform:uppercase;
+  text-decoration:none;transition:all 0.2s;
+  background:rgba(201,168,76,0.05);
+}
+.btn-secondary:hover{border-color:var(--gold);background:rgba(201,168,76,0.1)}
+
+.hero-cards{
+  position:absolute;right:-60px;top:50%;transform:translateY(-50%);
+  width:420px;height:520px;
+  animation:fadeUp 1s 0.6s ease both;
+  pointer-events:none;
+}
+.card-stack{position:relative;width:100%;height:100%}
+.playing-card{
+  position:absolute;
+  width:160px;height:220px;
+  background:var(--cream);
+  border-radius:8px;
+  border:1px solid rgba(201,168,76,0.2);
+  display:flex;flex-direction:column;
+  justify-content:space-between;
+  padding:12px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);
+}
+.playing-card.dark{background:var(--navy-mid);border-color:rgba(201,168,76,0.3)}
+.card-rank{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:600;line-height:1}
+.card-suit{font-size:1.4rem;line-height:1}
+.card-rank.red,.card-suit.red{color:var(--danger)}
+.card-rank.dark-text,.card-suit.dark-text{color:var(--navy)}
+.card-rank.gold,.card-suit.gold{color:var(--gold)}
+.card-centre{
+  font-size:3rem;text-align:center;
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+}
+.card-back{
+  background:var(--navy-mid);
+  background-image:repeating-linear-gradient(
+    45deg,
+    rgba(201,168,76,0.08) 0px,rgba(201,168,76,0.08) 1px,
+    transparent 1px,transparent 8px
+  );
+  border:1px solid rgba(201,168,76,0.25);
+}
+.c1{left:200px;top:40px;transform:rotate(12deg)}
+.c2{left:160px;top:80px;transform:rotate(6deg)}
+.c3{left:120px;top:120px;transform:rotate(-2deg)}
+.c4{left:80px;top:100px;transform:rotate(-8deg)}
+.c5{left:40px;top:140px;transform:rotate(-14deg)}
+
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(24px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* STATS BAR */
+.stats-bar{
+  border-top:0.5px solid rgba(201,168,76,0.12);
+  border-bottom:0.5px solid rgba(201,168,76,0.12);
+  padding:2rem;
+  display:flex;justify-content:center;gap:0;
+  background:rgba(17,34,64,0.4);
+  overflow-x:auto;
+}
+.stat-item{
+  text-align:center;
+  padding:0 3rem;
+  border-right:0.5px solid rgba(201,168,76,0.12);
+}
+.stat-item:last-child{border-right:none}
+.stat-number{
+  font-family:'Cormorant Garamond',serif;
+  font-size:2.5rem;font-weight:300;
+  color:var(--gold);line-height:1;
+  display:block;margin-bottom:0.3rem;
+}
+.stat-label{
+  font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--cream-muted);
+}
+
+/* SECTION SHARED */
+section{padding:7rem 2rem}
+.section-inner{max-width:1100px;margin:0 auto}
+.section-label{
+  font-size:0.7rem;letter-spacing:0.18em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:1rem;
+  display:flex;align-items:center;gap:0.75rem;
+}
+.section-label::before{
+  content:'';display:block;width:24px;height:0.5px;background:var(--gold);
+}
+.section-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(2.5rem,5vw,4rem);
+  font-weight:300;line-height:1.15;
+  margin-bottom:1.5rem;
+}
+.section-title em{font-style:italic;color:var(--gold)}
+
+/* THE DEPTH SECTION */
+.depth-section{background:var(--navy-deep)}
+.depth-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:4rem;align-items:center;
+  margin-top:4rem;
+}
+.depth-text p{
+  color:var(--cream-muted);font-size:1rem;line-height:1.9;
+  margin-bottom:1.5rem;
+}
+.depth-text p strong{color:var(--cream);font-weight:500}
+.depth-visual{
+  position:relative;
+  background:rgba(17,34,64,0.6);
+  border:0.5px solid rgba(201,168,76,0.15);
+  border-radius:4px;
+  padding:2rem;
+  min-height:320px;
+}
+.depth-table{
+  width:100%;height:100%;
+  background:var(--felt);
+  border-radius:50%;
+  aspect-ratio:1;
+  position:relative;
+  border:2px solid var(--gold);
+  display:flex;align-items:center;justify-content:center;
+  max-width:260px;margin:0 auto;
+}
+.pile-area{
+  display:flex;gap:12px;align-items:center;
+}
+.mini-card{
+  width:36px;height:52px;background:var(--cream);
+  border-radius:3px;border:0.5px solid rgba(0,0,0,0.1);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cormorant Garamond',serif;
+  font-size:0.9rem;font-weight:600;
+}
+.mini-card.red-card{color:var(--danger)}
+.mini-card.back{
+  background:var(--navy-mid);
+  background-image:repeating-linear-gradient(45deg,rgba(201,168,76,0.1) 0,rgba(201,168,76,0.1) 1px,transparent 1px,transparent 6px);
+  border:0.5px solid rgba(201,168,76,0.2);
+}
+
+/* POWER CARDS */
+.power-section{
+  background:linear-gradient(180deg,var(--navy-deep) 0%,rgba(11,61,46,0.15) 50%,var(--navy-deep) 100%);
+}
+.power-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1px;
+  margin-top:4rem;
+  border:0.5px solid rgba(201,168,76,0.12);
+}
+.power-card{
+  padding:2rem;
+  background:rgba(13,27,42,0.8);
+  border:0.5px solid rgba(201,168,76,0.08);
+  transition:background 0.2s;
+  position:relative;overflow:hidden;
+}
+.power-card::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  opacity:0;transition:opacity 0.3s;
+}
+.power-card:hover{background:rgba(17,34,64,0.9)}
+.power-card:hover::before{opacity:1}
+.power-rank{
+  font-family:'Cormorant Garamond',serif;
+  font-size:3rem;font-weight:300;line-height:1;
+  color:var(--gold);margin-bottom:0.75rem;
+  display:block;
+}
+.power-name{
+  font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--cream-muted);margin-bottom:0.75rem;
+}
+.power-desc{
+  font-size:0.9rem;color:var(--cream);line-height:1.7;
+  font-weight:300;
+}
+.power-tag{
+  display:inline-block;margin-top:1rem;
+  padding:0.2rem 0.6rem;border-radius:2px;
+  font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;
+}
+.tag-stack{background:rgba(226,75,74,0.15);color:#f09595}
+.tag-skip{background:rgba(201,168,76,0.15);color:var(--gold)}
+.tag-wild{background:rgba(29,158,117,0.15);color:#5DCAA5}
+.tag-reverse{background:rgba(127,119,221,0.15);color:#AFA9EC}
+.tag-cover{background:rgba(55,138,221,0.15);color:#85B7EB}
+.tag-counter{background:rgba(240,153,123,0.15);color:#F0997B}
+
+/* HOW TO PLAY */
+.howto-section{background:var(--navy-deep)}
+.steps{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:0;margin-top:4rem;
+  border:0.5px solid rgba(201,168,76,0.12);
+}
+.step{
+  padding:2.5rem 2rem;
+  border-right:0.5px solid rgba(201,168,76,0.12);
+  position:relative;
+}
+.step:last-child{border-right:none}
+.step-number{
+  font-family:'DM Mono',monospace;
+  font-size:0.7rem;letter-spacing:0.1em;
+  color:rgba(201,168,76,0.4);
+  margin-bottom:1rem;display:block;
+}
+.step-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.4rem;font-weight:400;
+  color:var(--cream);margin-bottom:0.75rem;
+}
+.step-desc{font-size:0.88rem;color:var(--cream-muted);line-height:1.8}
+.step-icon{
+  font-size:1.5rem;margin-bottom:1rem;display:block;
+}
+
+/* PSYCHOLOGY SECTION */
+.psych-section{
+  background:rgba(11,61,46,0.12);
+  border-top:0.5px solid rgba(201,168,76,0.1);
+  border-bottom:0.5px solid rgba(201,168,76,0.1);
+}
+.psych-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:5rem;align-items:center;
+  margin-top:3rem;
+}
+.psych-quote{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(1.8rem,3vw,2.5rem);
+  font-weight:300;font-style:italic;
+  line-height:1.4;color:var(--cream);
+  border-left:1px solid var(--gold);
+  padding-left:2rem;
+}
+.psych-points{display:flex;flex-direction:column;gap:1.5rem}
+.psych-point{
+  display:flex;gap:1rem;align-items:flex-start;
+}
+.psych-bullet{
+  width:4px;height:4px;border-radius:50%;
+  background:var(--gold);margin-top:0.6rem;flex-shrink:0;
+}
+.psych-point-text{font-size:0.95rem;color:var(--cream-muted);line-height:1.8}
+.psych-point-text strong{color:var(--cream);font-weight:500}
+
+/* CTA SECTION */
+.cta-section{
+  text-align:center;
+  padding:8rem 2rem;
+  background:var(--navy-deep);
+  position:relative;overflow:hidden;
+}
+.cta-bg{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 50% 50%,rgba(201,168,76,0.06) 0%,transparent 70%);
+}
+.cta-section .section-inner{position:relative;z-index:1}
+.cta-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(3rem,6vw,5.5rem);
+  font-weight:300;line-height:1.1;
+  margin-bottom:1.5rem;
+}
+.cta-sub{
+  font-size:1.05rem;color:var(--cream-muted);
+  max-width:480px;margin:0 auto 3rem;line-height:1.8;
+}
+.cta-actions{
+  display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;
+}
+
+/* FOOTER */
+footer{
+  padding:2.5rem 2rem;
+  border-top:0.5px solid rgba(201,168,76,0.12);
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:1rem;
+}
+.footer-logo{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.1rem;color:var(--gold);letter-spacing:0.08em;
+}
+.footer-copy{font-size:0.78rem;color:rgba(155,168,187,0.5);letter-spacing:0.04em}
+
+/* SCROLL ANIMATIONS */
+.reveal{
+  opacity:0;transform:translateY(32px);
+  transition:opacity 0.7s ease,transform 0.7s ease;
+}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-delay-1{transition-delay:0.1s}
+.reveal-delay-2{transition-delay:0.2s}
+.reveal-delay-3{transition-delay:0.3s}
+.reveal-delay-4{transition-delay:0.4s}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .hero-cards{display:none}
+  .depth-grid,.psych-grid{grid-template-columns:1fr}
+  .power-grid{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr}
+  .step{border-right:none;border-bottom:0.5px solid rgba(201,168,76,0.12)}
+  .stats-bar{gap:0;padding:1.5rem}
+  .stat-item{padding:0 1.5rem}
+  nav .nav-links{display:none}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="nav-logo">POWERSTACK</a>
+  <div class="nav-links">
+    <a href="#depth">The Game</a>
+    <a href="#power-cards">Power Cards</a>
+    <a href="#how-to-play">How to Play</a>
+  </div>
+  <a href="https://playpowerstack.vercel.app" class="nav-cta">Play Now</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <span class="eyebrow-dot"></span>
+      The card game that thinks back
+    </div>
+    <h1 class="hero-title">
+      <span class="line-break">Every card</span>
+      <span class="line-break">a <em>decision.</em></span>
+      <span class="line-break">Every move</span>
+      a weapon.
+    </h1>
+    <p class="hero-sub">
+      Powerstack is a multiplayer card game of psychological warfare, tactical combos, and perfectly timed power cards. Simple to learn. A lifetime to master.
+    </p>
+    <div class="hero-actions">
+      <a href="https://playpowerstack.vercel.app" class="btn-primary">
+        Play for free
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+      <a href="#depth" class="btn-secondary">Learn the game</a>
+    </div>
+  </div>
+
+  <div class="hero-cards">
+    <div class="card-stack">
+      <div class="playing-card card-back c1"></div>
+      <div class="playing-card card-back c2"></div>
+      <div class="playing-card c3">
+        <div><span class="card-rank dark-text">J</span><span class="card-suit dark-text">♣</span></div>
+        <span class="card-centre" style="color:#1a1a2e">♣</span>
+        <div style="transform:rotate(180deg)"><span class="card-rank dark-text">J</span><span class="card-suit dark-text">♣</span></div>
+      </div>
+      <div class="playing-card c4">
+        <div><span class="card-rank red">2</span><span class="card-suit red">♥</span></div>
+        <span class="card-centre red">♥</span>
+        <div style="transform:rotate(180deg)"><span class="card-rank red">2</span><span class="card-suit red">♥</span></div>
+      </div>
+      <div class="playing-card dark c5">
+        <div><span class="card-rank gold">A</span><span class="card-suit gold">♠</span></div>
+        <span class="card-centre gold">♠</span>
+        <div style="transform:rotate(180deg)"><span class="card-rank gold">A</span><span class="card-suit gold">♠</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <span class="stat-number">52</span>
+    <span class="stat-label">Card deck</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">6</span>
+    <span class="stat-label">Power cards</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">4</span>
+    <span class="stat-label">Players max</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">∞</span>
+    <span class="stat-label">Possible games</span>
+  </div>
+</div>
+
+<!-- DEPTH -->
+<section class="depth-section" id="depth">
+  <div class="section-inner">
+    <div class="section-label">The game</div>
+    <h2 class="section-title reveal">More than cards.<br><em>A mind game.</em></h2>
+
+    <div class="depth-grid">
+      <div class="depth-text reveal reveal-delay-1">
+        <p>
+          Powerstack is built on the foundation of a classic card game played in living rooms and kitchens for generations — but elevated with a tactical ruleset that rewards <strong>memory, deduction, and psychological pressure</strong>.
+        </p>
+        <p>
+          Players take turns building ascending or descending runs, switching suits through matching ranks. The goal is simple: empty your hand first. The execution is anything but.
+        </p>
+        <p>
+          Every turn is a question. Do you play your black jack now, or hold it for when your opponent is one card from winning? Do you stack the 2 penalty on the player in last place — or the player who's been too quiet, too comfortable, too dangerous?
+        </p>
+        <p>
+          <strong>Declare "I'm on cards"</strong> when you believe you can win next turn — but only if you actually can. A false declaration costs you two cards. A correct one sends a shockwave around the table.
+        </p>
+      </div>
+      <div class="depth-visual reveal reveal-delay-2">
+        <div class="depth-table">
+          <div class="pile-area">
+            <div class="mini-card red-card">7<br>♦</div>
+            <div class="mini-card back"></div>
+          </div>
+        </div>
+        <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:0.75rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:0.5px solid rgba(201,168,76,0.08)">
+            <span style="font-size:0.78rem;color:var(--cream-muted);letter-spacing:0.06em">CURRENT SUIT</span>
+            <span style="font-size:0.78rem;color:var(--gold);font-family:'DM Mono',monospace">♦ DIAMONDS</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:0.5px solid rgba(201,168,76,0.08)">
+            <span style="font-size:0.78rem;color:var(--cream-muted);letter-spacing:0.06em">PENALTY STACK</span>
+            <span style="font-size:0.78rem;color:#f09595;font-family:'DM Mono',monospace">+4 CARDS</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0">
+            <span style="font-size:0.78rem;color:var(--cream-muted);letter-spacing:0.06em">AHMED DECLARED</span>
+            <span style="font-size:0.78rem;color:#5DCAA5;font-family:'DM Mono',monospace">ON CARDS ⚡</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- POWER CARDS -->
+<section class="power-section" id="power-cards">
+  <div class="section-inner">
+    <div class="section-label reveal">Power cards</div>
+    <h2 class="section-title reveal reveal-delay-1">Six cards.<br><em>Infinite chaos.</em></h2>
+    <p class="reveal reveal-delay-2" style="color:var(--cream-muted);max-width:520px;font-size:0.95rem;line-height:1.9">
+      Six ranks carry special powers that can redirect the entire course of a game. Stack them. Counter them. Time them perfectly.
+    </p>
+
+    <div class="power-grid">
+      <div class="power-card reveal">
+        <span class="power-rank">A</span>
+        <div class="power-name">Ace — Suit changer</div>
+        <p class="power-desc">Declare any suit. The next player must match it, play another Ace, or draw. Stack Aces to override the declared suit each time.</p>
+        <span class="power-tag tag-wild">Wild</span>
+      </div>
+      <div class="power-card reveal reveal-delay-1">
+        <span class="power-rank">2</span>
+        <div class="power-name">Two — Pick up 2</div>
+        <p class="power-desc">The next player draws 2 cards — unless they play another 2 to pass the penalty on. Penalties stack across players. Two 2s means 4 cards. Three means 6.</p>
+        <span class="power-tag tag-stack">Stackable</span>
+      </div>
+      <div class="power-card reveal reveal-delay-2">
+        <span class="power-rank">8</span>
+        <div class="power-name">Eight — Miss a turn</div>
+        <p class="power-desc">The next player skips their go. Play two 8s in one turn and the next two players both miss. Counter with another 8 to redirect the skip.</p>
+        <span class="power-tag tag-skip">Skip</span>
+      </div>
+      <div class="power-card reveal">
+        <span class="power-rank">J♠ J♣</span>
+        <div class="power-name">Black Jack — Pick up 7</div>
+        <p class="power-desc">The next player draws 7 cards. Stack two Black Jacks and they draw 14. The only counter is a Red Jack — which cancels the penalty entirely.</p>
+        <span class="power-tag tag-stack">Stackable</span>
+      </div>
+      <div class="power-card reveal reveal-delay-1">
+        <span class="power-rank">J♥ J♦</span>
+        <div class="power-name">Red Jack — Shield</div>
+        <p class="power-desc">Cancels an incoming Black Jack penalty completely. Your most valuable defensive card. Play it at the right moment and watch the table react.</p>
+        <span class="power-tag tag-counter">Counter</span>
+      </div>
+      <div class="power-card reveal reveal-delay-2">
+        <span class="power-rank">Q</span>
+        <div class="power-name">Queen — Cover card</div>
+        <p class="power-desc">Must be followed by a card of the same suit. Play it alone and draw a card as penalty. Stack Queens — each covers the last, until the final one needs a same-suit cover.</p>
+        <span class="power-tag tag-cover">Cover</span>
+      </div>
+      <div class="power-card reveal" style="grid-column:span 2">
+        <span class="power-rank">K</span>
+        <div class="power-name">King — Reverse</div>
+        <p class="power-desc">Reverses the direction of play. Stack Kings to reverse multiple times. Two Kings cancel each other out. Three Kings leaves you with one net reversal. Use it to send a penalty back to its sender.</p>
+        <span class="power-tag tag-reverse">Reverse</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW TO PLAY -->
+<section class="howto-section" id="how-to-play">
+  <div class="section-inner">
+    <div class="section-label reveal">How to play</div>
+    <h2 class="section-title reveal reveal-delay-1">Up and running<br><em>in minutes.</em></h2>
+
+    <div class="steps">
+      <div class="step reveal">
+        <span class="step-number">01</span>
+        <span class="step-icon">🃏</span>
+        <div class="step-title">Deal 7 cards</div>
+        <p class="step-desc">Each player receives 7 cards. The remaining deck sits face-down. The top card is flipped to start the discard pile.</p>
+      </div>
+      <div class="step reveal reveal-delay-1">
+        <span class="step-number">02</span>
+        <span class="step-icon">🎯</span>
+        <div class="step-title">Match to play</div>
+        <p class="step-desc">On your turn, play a card that matches the top discard by suit or rank. Can't play? Draw one card and your turn ends.</p>
+      </div>
+      <div class="step reveal reveal-delay-2">
+        <span class="step-number">03</span>
+        <span class="step-icon">⚡</span>
+        <div class="step-title">Build combos</div>
+        <p class="step-desc">Play multiple cards in a single turn — ascending or descending runs. Switch suits by matching rank. The longer the combo, the faster you empty your hand.</p>
+      </div>
+      <div class="step reveal reveal-delay-3">
+        <span class="step-number">04</span>
+        <span class="step-icon">🏆</span>
+        <div class="step-title">Empty your hand</div>
+        <p class="step-desc">First to play all their cards wins. But you cannot finish on a power card — play it and draw one more. Declare "I'm on cards" when victory is within reach.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PSYCHOLOGY -->
+<section class="psych-section">
+  <div class="section-inner">
+    <div class="psych-grid">
+      <blockquote class="psych-quote reveal">
+        "The cards you hold are only half the game. The other half is making your opponents believe the wrong thing about them."
+      </blockquote>
+      <div class="psych-points reveal reveal-delay-2">
+        <div class="psych-point">
+          <div class="psych-bullet"></div>
+          <p class="psych-point-text"><strong>Track what's been played.</strong> Every card that hits the discard pile is information. Know what's left in the deck and you know what threats remain.</p>
+        </div>
+        <div class="psych-point">
+          <div class="psych-bullet"></div>
+          <p class="psych-point-text"><strong>Time your power cards.</strong> A black jack played too early is wasted. Held until an opponent is one card from winning — it's devastating.</p>
+        </div>
+        <div class="psych-point">
+          <div class="psych-bullet"></div>
+          <p class="psych-point-text"><strong>Choose your target.</strong> With four players you're managing a table, not just one opponent. Who do you hurt? Who do you let recover? Every decision has consequences two turns away.</p>
+        </div>
+        <div class="psych-point">
+          <div class="psych-bullet"></div>
+          <p class="psych-point-text"><strong>The declaration gamble.</strong> "I'm on cards" tells everyone you're dangerous. It also paints a target on you. The bluff, the counter-bluff, the fold — Powerstack rewards those who read the room.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-bg"></div>
+  <div class="section-inner">
+    <h2 class="cta-title reveal">
+      Ready to<br><em>play your hand?</em>
+    </h2>
+    <p class="cta-sub reveal reveal-delay-1">
+      Free to play. No download required. Challenge your friends or compete globally — your first game is one click away.
+    </p>
+    <div class="cta-actions reveal reveal-delay-2">
+      <a href="https://playpowerstack.vercel.app" class="btn-primary">
+        Play Powerstack free
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span class="footer-logo">POWERSTACK</span>
+  <span class="footer-copy">© 2026 Powerstack. All rights reserved.</span>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

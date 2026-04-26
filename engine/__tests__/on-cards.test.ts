@@ -378,6 +378,11 @@ describe('canWinNextTurn — valid declaration then Ace changes suit', () => {
 
 // ─── canWinNextTurn — power cards mid-sequence ───────────────────────────────
 
+// Convenience helpers
+function c(rank: Card['rank'], suit: Card['suit']): Card {
+  return { rank, suit };
+}
+
 // Convenience: build a state where p1 holds the given hand
 function stateWithHand(hand: Card[]) {
   return makeState({
@@ -474,5 +479,70 @@ describe('canWinNextTurn — solo Queen is not a winning move', () => {
       ],
     });
     expect(canWinNextTurn('p1', state)).toBe(false);
+  });
+});
+
+// ─── Bug 1 regression — same-rank two-card combo ─────────────────────────────
+
+describe('canWinNextTurn — same-rank two-card combos', () => {
+  it('6♦ → 6♥ — same rank suit change, valid winning combo', () => {
+    const hand = [c('6', 'diamonds'), c('6', 'hearts')];
+    expect(canWinNextTurn('p1', stateWithHand(hand))).toBe(true);
+  });
+
+  it('6♥ → 6♦ — same rank other order, also valid', () => {
+    const hand = [c('6', 'hearts'), c('6', 'diamonds')];
+    expect(canWinNextTurn('p1', stateWithHand(hand))).toBe(true);
+  });
+});
+
+// ─── Bug 2 regression — false declaration penalty + turn advance ──────────────
+
+describe('Bug 2 regression — false declaration draws penalty and advances turn', () => {
+  it('false on cards declaration — draws 2 cards and advances turn', () => {
+    const deck: Card[] = [
+      { rank: '9', suit: 'spades' },
+      { rank: '10', suit: 'spades' },
+    ];
+    // King is a power card — canWinNextTurn returns false → invalid declaration
+    const state = makeState({
+      currentPlayerHasActed: true,
+      deck,
+      discard: [{ rank: '5', suit: 'hearts' }],
+      players: [
+        makePlayer('p1', [{ rank: 'K', suit: 'diamonds' }]),
+        makePlayer('p2', [{ rank: '3', suit: 'clubs' }]),
+      ],
+    });
+    const { newState, isValid } = declareOnCards('p1', state);
+    expect(isValid).toBe(false);
+    // Penalty: p1 drew 2 cards
+    const p1 = newState.players.find((p) => p.id === 'p1')!;
+    expect(p1.hand).toHaveLength(3); // 1 original + 2 penalty
+    // Turn advances to p2
+    const advanced = advanceTurn(newState);
+    expect(advanced.currentPlayerIndex).toBe(1);
+    expect(advanced.currentPlayerHasActed).toBe(false);
+  });
+
+  it('valid on cards declaration — no penalty, declaration recorded', () => {
+    // [6♦, 6♥] — same-rank two-card combo, both non-power → canWinNextTurn returns true
+    const state = makeState({
+      currentPlayerHasActed: true,
+      discard: [{ rank: '5', suit: 'hearts' }],
+      players: [
+        makePlayer('p1', [c('6', 'diamonds'), c('6', 'hearts')]),
+        makePlayer('p2', [{ rank: '3', suit: 'clubs' }]),
+      ],
+    });
+    const { newState, isValid } = declareOnCards('p1', state);
+    expect(isValid).toBe(true);
+    expect(newState.onCardsDeclarations).toContain('p1');
+    // No penalty — hand unchanged
+    const p1 = newState.players.find((p) => p.id === 'p1')!;
+    expect(p1.hand).toHaveLength(2);
+    // Turn advances to p2
+    const advanced = advanceTurn(newState);
+    expect(advanced.currentPlayerIndex).toBe(1);
   });
 });

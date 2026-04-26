@@ -1115,21 +1115,23 @@ export default function GameScreen() {
     const currentState = isLocalMode ? localGameStateRef.current : gameStateRef.current;
     if (!currentState) return;
 
-    closeOnCardsWindow();
-    playSound('on_cards');
-    haptic('success');
     if (isLocalMode) {
-      const isValid = humanDeclareOnCards(); // reads localGameStateRef.current internally
+      const isValid = humanDeclareOnCards(); // reads localGameStateRef.current internally; advances turn
+      closeOnCardsWindow();
       if (isValid) {
+        playSound('on_cards');
+        haptic('success');
         gameStatsRef.current.correctOnCardsCount++;
         const humanName = localPlayerNames[localMyPlayerId] ?? 'You';
         addToast(`${humanName} is on cards!`);
       } else {
+        playSound('penalty');
+        haptic('error');
         gameStatsRef.current.falseOnCardsCount++;
         addToast("You're not on cards — 2 cards added to your hand");
-        haptic('error');
       }
     } else {
+      closeOnCardsWindow();
       socketDeclareOnCards(); // server declares + advances turn
     }
   }

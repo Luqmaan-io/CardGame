@@ -1,13 +1,19 @@
 import { Room, RoomPlayer } from './types';
 import { PLAYER_COLOURS, assignRandomColour } from '../shared/colours';
+import {
+  saveRoom,
+  getRoom as redisGetRoom,
+  deleteRoom,
+  getRoomBySocketId,
+} from './lib/roomStore';
 
-const rooms = new Map<string, Room>();
+export { setSocketRoom, removeSocketRoom } from './lib/roomStore';
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-export function createRoom(maxPlayers: 2 | 3 | 4, turnDuration: number = 30): Room {
+export async function createRoom(maxPlayers: 2 | 3 | 4, turnDuration: number = 30): Promise<Room> {
   const room: Room = {
     id: generateId(),
     players: [],
@@ -16,19 +22,19 @@ export function createRoom(maxPlayers: 2 | 3 | 4, turnDuration: number = 30): Ro
     status: 'waiting',
     turnDuration,
   };
-  rooms.set(room.id, room);
+  await saveRoom(room);
   return room;
 }
 
-export function joinRoom(
+export async function joinRoom(
   roomId: string,
   socketId: string,
   playerName: string,
   userId?: string,
   preferredColourHex?: string,
   avatarId?: string
-): Room | Error {
-  const room = rooms.get(roomId);
+): Promise<Room | Error> {
+  const room = await redisGetRoom(roomId);
   if (!room) return new Error(`Room ${roomId} not found`);
   if (room.status !== 'waiting') return new Error('Game already in progress');
   if (room.players.length >= room.maxPlayers) return new Error('Room is full');
@@ -45,35 +51,34 @@ export function joinRoom(
   }
   const player: RoomPlayer = { socketId, playerId, name: playerName, colourHex, userId, avatarId };
   const updated: Room = { ...room, players: [...room.players, player] };
-  rooms.set(roomId, updated);
+  await saveRoom(updated);
   return updated;
 }
 
-export function leaveRoom(roomId: string, socketId: string): Room {
-  const room = rooms.get(roomId);
+export async function leaveRoom(roomId: string, socketId: string): Promise<Room> {
+  const room = await redisGetRoom(roomId);
   if (!room) throw new Error(`Room ${roomId} not found`);
 
   const updated: Room = {
     ...room,
     players: room.players.filter((p) => p.socketId !== socketId),
   };
-  rooms.set(roomId, updated);
+  if (updated.players.length === 0) {
+    await deleteRoom(roomId);
+  } else {
+    await saveRoom(updated);
+  }
   return updated;
 }
 
-export function getRoomBySocket(socketId: string): Room | null {
-  for (const room of rooms.values()) {
-    if (room.players.some((p) => p.socketId === socketId)) {
-      return room;
-    }
-  }
-  return null;
+export async function getRoomBySocket(socketId: string): Promise<Room | null> {
+  return getRoomBySocketId(socketId);
 }
 
-export function updateRoom(room: Room): void {
-  rooms.set(room.id, room);
+export async function updateRoom(room: Room): Promise<void> {
+  await saveRoom(room);
 }
 
-export function getRoom(roomId: string): Room | null {
-  return rooms.get(roomId) ?? null;
+export async function getRoom(roomId: string): Promise<Room | null> {
+  return redisGetRoom(roomId);
 }

@@ -1,5 +1,5 @@
 import express from 'express';
-import http from 'http';
+import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { registerGameHandlers } from './gameServer';
@@ -7,6 +7,10 @@ import { registerGameHandlers } from './gameServer';
 const PORT = process.env.PORT || 3001;
 
 const app = express();
+
+// Required for Socket.io on Heroku
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json());
 
@@ -14,7 +18,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-const httpServer = http.createServer(app);
+const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
@@ -25,7 +29,14 @@ const io = new Server(httpServer, {
       'http://localhost:8083',
     ],
     methods: ['GET', 'POST'],
+    credentials: true,
   },
+  // Polling first then upgrade — more reliable on Heroku
+  transports: ['polling', 'websocket'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  allowUpgrades: true,
 });
 
 io.on('connection', (socket) => {

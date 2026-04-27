@@ -23,9 +23,12 @@ export function useSocket() {
     if (existing) return;
 
     const newSocket = io(SERVER_URL, {
-      transports: ['websocket'],
+      transports: ['polling', 'websocket'],  // polling first, then upgrade
+      upgrade: true,
+      rememberUpgrade: false,
+      timeout: 20000,
       reconnection: true,
-      reconnectionAttempts: Infinity,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
     });

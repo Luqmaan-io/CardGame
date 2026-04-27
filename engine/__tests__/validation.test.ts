@@ -25,6 +25,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
     placements: [],
+    consecutiveDraws: {},
     ...overrides,
   };
 }
@@ -180,14 +181,14 @@ describe('isValidCombo — ascending run', () => {
     expect(isValidCombo(combo, state)).toBe(true);
   });
 
-  it('rejects direction change (asc then desc)', () => {
+  it('direction can change freely — asc then desc same suit is now valid', () => {
     const state = makeState({ discard: [{ rank: '5', suit: 'hearts' }] });
     const combo: Card[] = [
       { rank: '5', suit: 'hearts' },
       { rank: '6', suit: 'hearts' },
-      { rank: '5', suit: 'hearts' }, // back down — invalid direction change
+      { rank: '5', suit: 'hearts' }, // back down — valid under new rules (direction can change freely)
     ];
-    expect(isValidCombo(combo, state)).toBe(false);
+    expect(isValidCombo(combo, state)).toBe(true);
   });
 });
 
@@ -376,12 +377,12 @@ describe('isValidCombo — same-rank suit changes are direction-neutral', () => 
     expect(isValidCombo([c('6', 'hearts'), c('6', 'clubs'), c('5', 'clubs')], state)).toBe(true);
   });
 
-  it('5♥ → 6♥ → 6♣ → 5♣ — ascending then suit change then descending, INVALID (direction change)', () => {
+  it('5♥ → 6♥ → 6♣ → 5♣ — ascending then suit change then descending, now VALID (direction can change freely)', () => {
     const state = makeState({ discard: [c('4', 'hearts')] });
     expect(isValidCombo(
       [c('5', 'hearts'), c('6', 'hearts'), c('6', 'clubs'), c('5', 'clubs')],
       state
-    )).toBe(false);
+    )).toBe(true);
   });
 
   it('6♥ → 6♣ → 7♣ → 7♥ → 8♥ — mixed suit changes and ascending, valid', () => {
@@ -423,5 +424,25 @@ describe('isValidCombo — Queen in multi-card combo still requires cover', () =
   it('Queen in multi-card combo with same-suit cover is valid', () => {
     const state = makeState({ discard: [c('5', 'hearts')] });
     expect(isValidCombo([c('Q', 'hearts'), c('3', 'hearts')], state)).toBe(true);
+  });
+});
+
+// ─── isValidCombo — direction can change freely ───────────────────────────────
+
+describe('isValidCombo — direction changes freely after suit change', () => {
+  it('5♥ → 6♥ → 6♣ → 5♣ — up then suit change then down, valid', () => {
+    const state = makeState({ discard: [c('4', 'hearts')] });
+    expect(isValidCombo(
+      [c('5', 'hearts'), c('6', 'hearts'), c('6', 'clubs'), c('5', 'clubs')],
+      state
+    )).toBe(true);
+  });
+
+  it('7♥ → 6♥ → 6♣ → 7♣ — down then suit change then up, valid', () => {
+    const state = makeState({ discard: [c('8', 'hearts')] });
+    expect(isValidCombo(
+      [c('7', 'hearts'), c('6', 'hearts'), c('6', 'clubs'), c('7', 'clubs')],
+      state
+    )).toBe(true);
   });
 });

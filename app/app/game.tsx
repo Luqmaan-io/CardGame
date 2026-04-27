@@ -1137,6 +1137,7 @@ export default function GameScreen() {
   }
 
   const onCardsActive = gameState.onCardsDeclarations.includes(myPlayerId);
+  const consecutiveDrawCount = gameState.consecutiveDraws[myPlayerId] ?? 0;
 
   // Turn duration — local from params, online from roomInfo
   const turnDuration = isLocalMode
@@ -1292,6 +1293,15 @@ export default function GameScreen() {
       />
 
       <SuitPicker visible={showSuitPicker} onSelect={handleDeclareSuit} />
+
+      {/* ── Consecutive draw warning ── */}
+      {consecutiveDrawCount >= 3 && (
+        <View style={{ position: 'absolute', bottom: 270, alignSelf: 'center', zIndex: 49 }}>
+          <Text style={{ color: THEME.warning, fontSize: 12, textAlign: 'center', letterSpacing: 0.5 }}>
+            {5 - consecutiveDrawCount} more draw{5 - consecutiveDrawCount !== 1 ? 's' : ''} until you miss a turn
+          </Text>
+        </View>
+      )}
 
       {/* ── On-cards declaration pill — compact, sizes to content ── */}
       {showOnCardsWindow && (

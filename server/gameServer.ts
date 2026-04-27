@@ -138,6 +138,7 @@ function initGameState(room: Room): GameState {
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
     placements: [],
+    consecutiveDraws: {},
   };
 }
 
@@ -256,7 +257,8 @@ async function handleRankedAITurn(roomId: string, io: Server): Promise<void> {
   let newState: GameState;
   if (move === 'draw') {
     const drawCount = fresh.pendingPickup > 0 ? fresh.pendingPickup : 1;
-    const drawnState = drawCard(drawCount, fresh);
+    const isVoluntary = drawCount === 1 && fresh.pendingPickup === 0;
+    const drawnState = drawCard(drawCount, fresh, isVoluntary);
     newState = advanceTurn(drawnState);
   } else {
     const declaredSuit = move.some((c) => c.rank === 'A')
@@ -404,7 +406,8 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
 
     clearTurnTimer(data.roomId);
     const drawCount = room.state.pendingPickup > 0 ? room.state.pendingPickup : 1;
-    const drawnState = drawCard(drawCount, room.state);
+    const isVoluntary = drawCount === 1 && room.state.pendingPickup === 0;
+    const drawnState = drawCard(drawCount, room.state, isVoluntary);
 
     // Broadcast intermediate state — player still active, currentPlayerHasActed: true
     const updated: Room = { ...room, state: drawnState };

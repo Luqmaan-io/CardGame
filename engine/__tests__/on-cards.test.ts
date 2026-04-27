@@ -28,6 +28,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
     placements: [],
+    consecutiveDraws: {},
     ...overrides,
   };
 }

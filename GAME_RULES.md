@@ -58,7 +58,7 @@ A player may play **multiple cards in a single turn** forming a continuous ascen
  
 **Rules:**
 - Each card in the combo must connect to the previous by **matching rank** (to change suit) or **matching suit** (to change rank by ±1 in the run direction)
-- The run direction (ascending or descending) is set by the first two cards and must be maintained
+- The run direction can change freely within a combo. Each consecutive same-suit card must be exactly ±1 in rank from the previous card, but can go up or down at any point. Direction changes become possible through suit changes — by matching rank you switch suits, and the new suit can continue in either direction. Example: 5♥ → 6♥ → 6♣ → 5♣ is valid — ascending in hearts, switching to clubs via the matching 6, then descending in clubs.
 - Suits may change mid-run by matching rank: `4♦ → 4♠ → 5♠ → 6♠` is valid
 - There is no maximum combo length
 - A combo may **end on a power card** — but see the power card finish rule below
@@ -163,6 +163,12 @@ Only **1st place** counts as a win for stats purposes. All other placements are 
  
 ---
  
+## Consecutive Draw Rule
+
+If a player draws a card on 5 consecutive turns without successfully playing any cards, their following turn is automatically skipped. Only voluntary draws count toward this — draws from 2-stack or black jack penalties do not count. The consecutive draw counter resets to zero whenever a player successfully plays one or more cards.
+
+---
+
 ## Turn Timer
 
 - Each player has **30 seconds** to complete their turn.
@@ -223,6 +229,7 @@ GameState {
   pendingPickupType: '2' | 'jack' | null
   skipsRemaining: number        // set by 8 plays
   phase: 'play' | 'pickup' | 'cover' | 'declare-suit' | 'game-over'
+  consecutiveDraws: Record<string, number>  // playerId -> consecutive voluntary draw count
 }
  
 Player {

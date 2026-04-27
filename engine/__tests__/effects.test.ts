@@ -21,6 +21,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
     placements: [],
+    consecutiveDraws: {},
     ...overrides,
   };
 }
@@ -151,6 +152,7 @@ function makePlayState(hand: Card[], topDiscard: Card, overrides: Partial<GameSt
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
     placements: [],
+    consecutiveDraws: {},
     ...overrides,
   };
 }

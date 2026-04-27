@@ -121,8 +121,10 @@ export function advanceTurn(state: GameState): GameState {
  * Draw `count` cards for the current player.
  * Does NOT advance the turn — call advanceTurn() after this.
  * Sets currentPlayerHasActed: true.
+ * isVoluntary: true for single-card voluntary draws (increments consecutiveDraws counter).
+ *              false for penalty draws from 2-stack or black jack (counter unchanged).
  */
-export function drawCard(count: number, state: GameState): GameState {
+export function drawCard(count: number, state: GameState, isVoluntary: boolean = false): GameState {
   let currentState = { ...state };
 
   const currentPlayer = currentState.players[currentState.currentPlayerIndex];
@@ -160,7 +162,7 @@ export function drawCard(count: number, state: GameState): GameState {
     p.id === currentPlayer.id ? updatedPlayer : p
   );
 
-  return {
+  let newState: GameState = {
     ...currentState,
     players: updatedPlayers,
     pendingPickup: 0,
@@ -169,6 +171,28 @@ export function drawCard(count: number, state: GameState): GameState {
     phase: 'play',
     currentPlayerHasActed: true,
   };
+
+  // Voluntary single draw — increment consecutive draw counter
+  if (isVoluntary && count === 1) {
+    const playerId = currentPlayer.id;
+    const currentCount = (newState.consecutiveDraws[playerId] ?? 0) + 1;
+
+    if (currentCount >= 5) {
+      // 5th consecutive voluntary draw — apply a skip and reset counter
+      newState = {
+        ...newState,
+        consecutiveDraws: { ...newState.consecutiveDraws, [playerId]: 0 },
+        skipsRemaining: (newState.skipsRemaining ?? 0) + 1,
+      };
+    } else {
+      newState = {
+        ...newState,
+        consecutiveDraws: { ...newState.consecutiveDraws, [playerId]: currentCount },
+      };
+    }
+  }
+
+  return newState;
 }
 
 /**
@@ -249,6 +273,7 @@ export function applyPlay(
       activeSuit: null,
       skipsRemaining: 0,
       timerStartedAt: null,
+      consecutiveDraws: { ...state.consecutiveDraws, [currentPlayer.id]: 0 },
     });
     // Draw one card as penalty for the solo Queen play
     queenState = drawCard(1, queenState);
@@ -299,6 +324,7 @@ export function applyPlay(
     activeSuit: null,
     skipsRemaining: 0,
     timerStartedAt: null,
+    consecutiveDraws: { ...state.consecutiveDraws, [currentPlayer.id]: 0 },
   });
 
   // Apply power card effects in order

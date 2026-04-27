@@ -36,6 +36,7 @@ export interface GameState {
   onCardsDeclarations: string[];
   currentPlayerHasActed: boolean; // true after the current player has played or drawn this turn
   placements: { playerId: string; place: number }[];
+  consecutiveDraws: Record<string, number>; // playerId -> consecutive voluntary draw count
 }
 
 export const POWER_CARDS: Rank[] = ['A', '2', '8', 'J', 'Q', 'K'];

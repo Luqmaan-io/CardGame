@@ -266,7 +266,8 @@ export function useLocalGame() {
     if (!state) return;
 
     const drawCount = state.pendingPickup > 0 ? state.pendingPickup : 1;
-    const actedState = engineDrawCard(drawCount, state);
+    const isVoluntary = drawCount === 1 && state.pendingPickup === 0;
+    const actedState = engineDrawCard(drawCount, state, isVoluntary);
     stateRef.current = actedState;
     setGameState(actedState);
     // Stay on player's turn — wait for humanEndTurn or humanDeclareOnCards

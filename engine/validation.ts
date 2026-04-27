@@ -74,15 +74,14 @@ function _hasWinningCombo(hand: Card[]): boolean {
   for (let startIdx = 0; startIdx < hand.length; startIdx++) {
     const remaining = [...hand];
     const first = remaining.splice(startIdx, 1)[0]!;
-    if (_findWinningSequence([first], remaining, null)) return true;
+    if (_findWinningSequence([first], remaining)) return true;
   }
   return false;
 }
 
 function _findWinningSequence(
   current: Card[],
-  remaining: Card[],
-  direction: 'asc' | 'desc' | null
+  remaining: Card[]
 ): boolean {
   if (remaining.length === 0) {
     const lastCard = current[current.length - 1]!;
@@ -97,20 +96,11 @@ function _findWinningSequence(
 
   for (let i = 0; i < remaining.length; i++) {
     const nextCard = remaining[i]!;
-    if (!_canFollow(lastCard, nextCard, pendingQueenSuit, direction)) continue;
-
-    // Update direction only on same-suit different-rank steps; same-rank is neutral
-    let newDirection = direction;
-    if (lastCard.suit === nextCard.suit && lastCard.rank !== nextCard.rank) {
-      const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-      const diff = ranks.indexOf(nextCard.rank) - ranks.indexOf(lastCard.rank);
-      newDirection = diff > 0 ? 'asc' : 'desc';
-    }
-    // If same rank (suit change), newDirection stays unchanged — direction is unaffected
+    if (!_canFollow(lastCard, nextCard, pendingQueenSuit)) continue;
 
     const newRemaining = [...remaining];
     newRemaining.splice(i, 1);
-    if (_findWinningSequence([...current, nextCard], newRemaining, newDirection)) return true;
+    if (_findWinningSequence([...current, nextCard], newRemaining)) return true;
   }
   return false;
 }
@@ -118,22 +108,19 @@ function _findWinningSequence(
 function _canFollow(
   prev: Card,
   next: Card,
-  pendingQueenSuit: string | null,
-  currentDirection: 'asc' | 'desc' | null
+  pendingQueenSuit: string | null
 ): boolean {
   if (pendingQueenSuit !== null) {
     return next.suit === pendingQueenSuit || next.rank === 'Q';
   }
-  // Same rank — suit change, completely neutral with respect to direction
+  // Same rank — suit change, direction-neutral
   if (prev.rank === next.rank) return true;
-  // Same suit different rank — must be adjacent and direction-consistent
+  // Same suit different rank — must be adjacent (±1), any direction; K↔A wrap allowed
   if (prev.suit === next.suit) {
     const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-    const diff = ranks.indexOf(next.rank) - ranks.indexOf(prev.rank);
-    if (Math.abs(diff) !== 1) return false;
-    const moveDir = diff > 0 ? 'asc' : 'desc';
-    if (currentDirection !== null && moveDir !== currentDirection) return false;
-    return true;
+    const diff = Math.abs(ranks.indexOf(next.rank) - ranks.indexOf(prev.rank));
+    const wraps = (prev.rank === 'K' && next.rank === 'A') || (prev.rank === 'A' && next.rank === 'K');
+    return diff === 1 || wraps;
   }
   return false;
 }
@@ -172,10 +159,7 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
   // First card must be valid to play
   if (!isValidPlay(cards[0]!, state)) return false;
 
-  // Track combo direction: null until first rank change detected
-  let direction: 'asc' | 'desc' | null = null;
   // Track whether the previous card was a Queen (needing same-suit cover).
-  // Initialise for the first card if it is a Queen.
   let needsCoverSuit: Suit | null = cards[0]!.rank === 'Q' ? cards[0]!.suit : null;
 
   for (let i = 1; i < cards.length; i++) {
@@ -185,19 +169,14 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
     // Queen cover rule: another Queen of any suit OR a same-suit card covers the pending Queen
     if (needsCoverSuit !== null) {
       if (curr.rank !== 'Q' && curr.suit !== needsCoverSuit) return false;
-      needsCoverSuit = null;
-      // After the cover, direction resets — the cover card starts a new run
-      direction = null;
-      if (curr.rank === 'Q') {
-        needsCoverSuit = curr.suit;
-      }
+      needsCoverSuit = curr.rank === 'Q' ? curr.suit : null;
       continue;
     }
 
     const isSameRank = curr.rank === prev.rank;
     const isSameSuit = curr.suit === prev.suit;
 
-    // Matching rank — suit change, completely neutral with respect to direction
+    // Matching rank — suit change, direction-neutral
     if (isSameRank) {
       if (curr.rank === 'Q') {
         needsCoverSuit = curr.suit;
@@ -205,30 +184,12 @@ export function isValidCombo(cards: Card[], state: GameState): boolean {
       continue;
     }
 
-    // Different rank — must match suit AND be adjacent (±1) in run direction
+    // Different rank — must match suit AND be adjacent (±1), any direction
     if (!isSameSuit) return false;
 
-    const prevIdx = rankIndex(prev.rank);
-    const currIdx = rankIndex(curr.rank);
-    const diff = currIdx - prevIdx;
-
-    // K→A is a valid ascending step (same suit required, already checked above)
-    // A→K is a valid descending step (same suit required, already checked above)
-    const wrapsAsc = prev.rank === 'K' && curr.rank === 'A';
-    const wrapsDesc = prev.rank === 'A' && curr.rank === 'K';
-
-    if (diff === 1 || wrapsAsc) {
-      // Ascending step — direction only set/checked on same-suit rank steps
-      if (direction === 'desc') return false;
-      direction = 'asc';
-    } else if (diff === -1 || wrapsDesc) {
-      // Descending step
-      if (direction === 'asc') return false;
-      direction = 'desc';
-    } else {
-      // Not adjacent
-      return false;
-    }
+    const diff = Math.abs(rankIndex(curr.rank) - rankIndex(prev.rank));
+    const wraps = (prev.rank === 'K' && curr.rank === 'A') || (prev.rank === 'A' && curr.rank === 'K');
+    if (diff !== 1 && !wraps) return false;
 
     if (curr.rank === 'Q') {
       needsCoverSuit = curr.suit;

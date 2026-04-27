@@ -24,6 +24,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     onCardsDeclarations: [],
     currentPlayerHasActed: false,
     placements: [],
+    consecutiveDraws: {},
     ...overrides,
   };
 }
@@ -360,5 +361,75 @@ describe('applyPlay — solo Queen play', () => {
     // Turn advanced to p2
     expect(result.currentPlayerIndex).not.toBe(0);
     expect(result.currentPlayerHasActed).toBe(false);
+  });
+});
+
+// ─── consecutiveDraws — voluntary draw tracking ───────────────────────────────
+
+function c(rank: Card['rank'], suit: Card['suit']): Card {
+  return { rank, suit };
+}
+
+describe('consecutiveDraws — voluntary draw counter', () => {
+  it('4 consecutive voluntary draws — counter increments, no skip yet', () => {
+    let state = makeState({
+      consecutiveDraws: { p1: 3 },
+      deck: [c('9', 'spades'), c('10', 'spades')],
+    });
+    state = drawCard(1, state, true);
+    expect(state.consecutiveDraws['p1']).toBe(4);
+    expect(state.skipsRemaining).toBe(0);
+  });
+
+  it('5th consecutive voluntary draw — skip applied, counter resets', () => {
+    let state = makeState({
+      consecutiveDraws: { p1: 4 },
+      deck: [c('9', 'spades')],
+    });
+    state = drawCard(1, state, true);
+    expect(state.consecutiveDraws['p1']).toBe(0);
+    expect(state.skipsRemaining).toBe(1);
+  });
+
+  it('penalty draw does not increment consecutive draw counter', () => {
+    let state = makeState({
+      consecutiveDraws: { p1: 3 },
+      pendingPickup: 2,
+      pendingPickupType: '2',
+      deck: [c('9', 'spades'), c('10', 'spades')],
+    });
+    state = drawCard(2, state, false);
+    expect(state.consecutiveDraws['p1']).toBe(3); // unchanged
+  });
+
+  it('successful play resets consecutive draw counter', () => {
+    const state = makeState({
+      consecutiveDraws: { p1: 4 },
+      discard: [c('5', 'clubs')],
+      players: [
+        makePlayer('p1', [c('5', 'hearts')]),
+        makePlayer('p2', [c('3', 'clubs')]),
+      ],
+    });
+    const newState = applyPlay([c('5', 'hearts')], null, state);
+    expect(newState.consecutiveDraws['p1']).toBe(0);
+  });
+});
+
+describe('canWinNextTurn — direction-change combos still valid', () => {
+  const { canWinNextTurn } = require('../validation');
+
+  function stateWithHand(hand: Card[]) {
+    return makeState({
+      players: [
+        makePlayer('p1', hand),
+        makePlayer('p2', [c('3', 'clubs')]),
+      ],
+    });
+  }
+
+  it('up then suit change then down — valid winning combo', () => {
+    const hand = [c('6', 'hearts'), c('7', 'hearts'), c('7', 'clubs'), c('6', 'clubs')];
+    expect(canWinNextTurn('p1', stateWithHand(hand))).toBe(true);
   });
 });

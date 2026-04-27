@@ -1,13 +1,11 @@
 import { createClient } from 'redis';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
+const isTls = REDIS_URL.startsWith('rediss://');
 
 export const redisClient = createClient({
   url: REDIS_URL,
-  socket: {
-    tls: REDIS_URL.startsWith('rediss://'),
-    rejectUnauthorized: false,
-  },
+  ...(isTls && { socket: { tls: true as const, rejectUnauthorized: false } }),
 });
 
 export const redisSubscriber = redisClient.duplicate();

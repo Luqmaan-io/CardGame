@@ -38,5 +38,9 @@ export async function removeSocketRoom(socketId: string): Promise<void> {
 export async function getAllRooms(): Promise<Room[]> {
   const ids = await redisClient.sMembers(ROOMS_SET);
   const results = await Promise.all(ids.map(getRoom));
-  return results.filter((r): r is Room => r !== null) as Room[];
+  const rooms: Room[] = [];
+  for (const r of results) {
+    if (r !== null) rooms.push(r);
+  }
+  return rooms;
 }

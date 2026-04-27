@@ -12,8 +12,8 @@ export const redisClient = createClient({
 
 export const redisSubscriber = redisClient.duplicate();
 
-redisClient.on('error', (err) => console.error('[Redis] client error:', err));
-redisSubscriber.on('error', (err) => console.error('[Redis] subscriber error:', err));
+redisClient.on('error', (err: Error) => console.error('[Redis] client error:', err));
+redisSubscriber.on('error', (err: Error) => console.error('[Redis] subscriber error:', err));
 
 export async function connectRedis(): Promise<void> {
   await redisClient.connect();

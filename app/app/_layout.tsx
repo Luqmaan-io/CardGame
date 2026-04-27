@@ -1,6 +1,6 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -42,8 +42,28 @@ function AuthGate() {
 
 function LoadingScreen() {
   return (
-    <View style={styles.loading}>
-      <ActivityIndicator size="large" color={THEME.gold} />
+    <View style={{
+      flex: 1,
+      backgroundColor: '#070C14',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+    }}>
+      <Text style={{
+        fontFamily: 'serif',
+        fontSize: 28,
+        color: '#C9A84C',
+        letterSpacing: 4,
+      }}>
+        POWERSTACK
+      </Text>
+      <Text style={{
+        color: '#5A6A7E',
+        fontSize: 12,
+        letterSpacing: 2,
+      }}>
+        Loading...
+      </Text>
     </View>
   );
 }
@@ -103,10 +123,4 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  loading: {
-    flex: 1,
-    backgroundColor: THEME.appBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

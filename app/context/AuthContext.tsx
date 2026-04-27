@@ -37,14 +37,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    // Safety timeout — if Supabase takes more than 8 seconds,
+    // Safety timeout — if Supabase takes more than 15 seconds,
     // force the app to continue as unauthenticated
     const safetyTimeout = setTimeout(() => {
-      if (mounted) {
-        console.warn('Supabase session check timed out — continuing as guest')
+      if (mounted && isLoading) {
+        console.warn('Auth timeout — continuing as unauthenticated')
         setIsLoading(false)
       }
-    }, 8000)
+    }, 15000)
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -112,20 +112,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, attempt = 1): Promise<void> => {
     try {
-      const profilePromise = supabase
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
+        .abortSignal(controller.signal)
 
-      // Timeout after 6 seconds
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 6000)
-      )
+      clearTimeout(timeoutId)
 
-      const { data, error } = await Promise.race([profilePromise, timeoutPromise])
+      if (error) {
+        // If profile doesn't exist yet — trigger was slow, retry
+        if (error.code === 'PGRST116' && attempt < 3) {
+          console.log(`Profile not found, retrying... (attempt ${attempt})`)
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          return fetchProfile(userId, attempt + 1)
+        }
+        console.warn('Profile fetch error:', error)
+        setIsLoading(false)
+        return
+      }
 
       if (data) {
         setProfile({
@@ -136,11 +147,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           colourHex: data.colour_hex,
           isGuest: data.is_guest,
         })
-      } else {
-        console.warn('Profile fetch failed:', error)
       }
-    } catch (err) {
-      console.warn('Profile fetch error:', err)
+    } catch (err: unknown) {
+      const e = err as { name?: string }
+      if (e?.name === 'AbortError' && attempt < 3) {
+        console.log(`Profile fetch timed out, retrying... (attempt ${attempt})`)
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        return fetchProfile(userId, attempt + 1)
+      }
+      console.warn('Profile fetch failed after retries:', err)
     } finally {
       setIsLoading(false)
     }

@@ -220,6 +220,27 @@ const drawStyles = StyleSheet.create({
 
 // ─── OpponentSlot ─────────────────────────────────────────────────────────────
 
+// ─── opponentHandFan ─────────────────────────────────────────────────────────
+// Returns an array of { rotate, translateX, translateY } for each card in the fan.
+// Cards fan outward left-to-right relative to the slot (before table rotation).
+function opponentHandFan(count: number): Array<{ rotate: string; translateX: number; translateY: number }> {
+  const clampedCount = Math.min(count, 8);
+  if (clampedCount === 0) return [];
+  const totalSpread = Math.min(clampedCount * 7, 50); // degrees
+  const step = clampedCount > 1 ? totalSpread / (clampedCount - 1) : 0;
+  const startAngle = -totalSpread / 2;
+  return Array.from({ length: clampedCount }, (_, i) => {
+    const angle = startAngle + i * step;
+    const rad = (angle * Math.PI) / 180;
+    const arcRadius = 28;
+    return {
+      rotate: `${angle}deg`,
+      translateX: arcRadius * Math.sin(rad),
+      translateY: arcRadius * (1 - Math.cos(rad)),
+    };
+  });
+}
+
 interface OpponentSlotViewProps {
   playerId: string;
   hand: CardType[];
@@ -228,6 +249,7 @@ interface OpponentSlotViewProps {
   hasOnCardsDeclaration: boolean;
   colourHex: string;
   avatarId: string;
+  backDesignId?: string;
   visibleCardCount?: number;
   isFlashing?: boolean;
 }
@@ -239,6 +261,7 @@ function OpponentSlotView({
   hasOnCardsDeclaration,
   colourHex,
   avatarId,
+  backDesignId = 'back_00',
   visibleCardCount,
   isFlashing = false,
 }: OpponentSlotViewProps) {
@@ -282,7 +305,7 @@ function OpponentSlotView({
   }, [isCurrentTurn, hand.length]);
 
   const effectiveCount = visibleCardCount !== undefined ? visibleCardCount : hand.length;
-  const stackCount = Math.min(3, Math.max(1, effectiveCount));
+  const fanCards = opponentHandFan(effectiveCount);
 
   const flashBorderColor = flashAnim.interpolate({
     inputRange: [0, 1],
@@ -310,17 +333,21 @@ function OpponentSlotView({
         {name}
       </Text>
 
-      {/* Face-down card stack */}
-      <Animated.View style={[oppStyles.cardStack, isCurrentTurn && { transform: [{ translateY: liftAnim }] }]}>
-        {Array.from({ length: stackCount }).map((_, i) => (
+      {/* Face-down card fan */}
+      <Animated.View style={[oppStyles.cardFan, isCurrentTurn && { transform: [{ translateY: liftAnim }] }]}>
+        {fanCards.map((f, i) => (
           <View
             key={i}
-            style={[
-              oppStyles.stackCard,
-              i > 0 && { position: 'absolute', top: -(i * 2), left: i * 1.5 },
-            ]}
+            style={{
+              position: 'absolute',
+              transform: [
+                { translateX: f.translateX },
+                { translateY: f.translateY },
+                { rotate: f.rotate },
+              ],
+            }}
           >
-            <CardBack width={26} height={38} />
+            <CardBack width={22} height={32} backDesignId={backDesignId} />
           </View>
         ))}
       </Animated.View>
@@ -369,13 +396,14 @@ const oppStyles = StyleSheet.create({
     maxWidth: 72,
     textAlign: 'center',
   },
-  cardStack: {
+  cardFan: {
     position: 'relative',
-    width: 26,
+    width: 50,
     height: 38,
     marginTop: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  stackCard: {},
   alertRing: {
     position: 'absolute',
     top: -6,
@@ -617,6 +645,10 @@ export function RoundTable({
     isMyTurn && !hasActed && !isAIThinking && !isDealing &&
     gameState.phase !== 'declare-suit';
 
+  // ── Draw pile opacity — dim when player has valid plays; full when forced to draw ──
+  const hasValidPlays = validPlays.length > 0;
+  const drawPileOpacity = isMyTurn && hasValidPlays ? 0.5 : 1;
+
   // ── tableToScreen: approximate screen coords for Layer 3 overlays ────────────
   // Ignores perspective distortion (acceptable for floating effects).
   const tableToScreen = (tx: number, ty: number) => ({
@@ -819,6 +851,7 @@ export function RoundTable({
               top: DRAW_Y,
               alignItems: 'center',
               zIndex: 5,
+              opacity: drawPileOpacity,
             }}
           >
             <DrawPileView
@@ -879,6 +912,7 @@ export function RoundTable({
                   hasOnCardsDeclaration={gameState.onCardsDeclarations.includes(player.id)}
                   colourHex={player.colourHex ?? THEME.info}
                   avatarId={(player as { avatarId?: string }).avatarId ?? 'avatar_01'}
+                  backDesignId={(player as { cardBackId?: string }).cardBackId ?? 'back_00'}
                   visibleCardCount={vCount}
                   isFlashing={flashingPlayerId === player.id}
                 />

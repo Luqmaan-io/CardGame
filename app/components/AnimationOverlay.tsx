@@ -22,6 +22,7 @@ export interface AnimCardTask {
   delay: number;        // ms before this card starts moving
   duration: number;     // ms for the flight
   onComplete?: () => void;
+  backDesignId?: string; // card back design for face-down animations
 }
 
 export interface AnimationOverlayHandle {
@@ -91,6 +92,7 @@ function AnimatingCard({ task, onDone }: AnimatingCardProps) {
       <Card
         card={task.card ?? { rank: 'A', suit: 'spades' }}
         faceDown={task.card === null}
+        backDesignId={task.backDesignId}
       />
     </Animated.View>
   );

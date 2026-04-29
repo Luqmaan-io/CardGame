@@ -32,7 +32,9 @@ export async function joinRoom(
   playerName: string,
   userId?: string,
   preferredColourHex?: string,
-  avatarId?: string
+  avatarId?: string,
+  cardBackId?: string,
+  cardFaceId?: string
 ): Promise<Room | Error> {
   const room = await redisGetRoom(roomId);
   if (!room) return new Error(`Room ${roomId} not found`);
@@ -49,7 +51,11 @@ export async function joinRoom(
       .filter(Boolean);
     colourHex = assignRandomColour(takenColourIds).hex;
   }
-  const player: RoomPlayer = { socketId, playerId, name: playerName, colourHex, userId, avatarId };
+  const player: RoomPlayer = {
+    socketId, playerId, name: playerName, colourHex, userId, avatarId,
+    cardBackId: cardBackId ?? 'back_00',
+    cardFaceId: cardFaceId ?? 'face_00',
+  };
   const updated: Room = { ...room, players: [...room.players, player] };
   await saveRoom(updated);
   return updated;

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import { useSounds } from '../hooks/useSounds';
 import { useHaptics } from '../hooks/useHaptics';
 import Avatar from '../components/Avatar'
 import { THEME } from '../utils/theme';
+import { CARD_BACKS_MAP } from '../assets/cardbacks';
+import { CARD_FACES_MAP } from '../assets/cardfaces';
 
 interface Standing {
   id: string;
@@ -35,7 +37,7 @@ export default function ResultsScreen() {
   const { width, height } = useWindowDimensions();
 
   const { startGame } = useSocket();
-  const { gameState, myPlayerId, roomId, roomInfo, reset, setGameState } = useGameStore();
+  const { gameState, myPlayerId, roomId, roomInfo, reset, setGameState, newlyUnlockedDesigns, setNewlyUnlockedDesigns } = useGameStore();
   const { playSound } = useSounds();
   const { trigger: haptic } = useHaptics();
 
@@ -233,6 +235,28 @@ export default function ResultsScreen() {
           }}
         />
 
+        {/* ── Unlock notification ── */}
+        {newlyUnlockedDesigns.length > 0 && (
+          <TouchableOpacity
+            style={styles.unlockBanner}
+            onPress={() => {
+              setNewlyUnlockedDesigns([]);
+              router.push('/challenges');
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.unlockBannerTitle}>✦ New unlock{newlyUnlockedDesigns.length > 1 ? 's' : ''}!</Text>
+            <Text style={styles.unlockBannerSub}>
+              {newlyUnlockedDesigns.map((id) => {
+                const back = CARD_BACKS_MAP[id];
+                const face = CARD_FACES_MAP[id];
+                return back?.name ?? face?.name ?? id;
+              }).join(', ')}
+            </Text>
+            <Text style={styles.unlockBannerCta}>View in Cards →</Text>
+          </TouchableOpacity>
+        )}
+
         {showPlayAgain && (
           <TouchableOpacity style={styles.primaryBtn} onPress={handlePlayAgain}>
             <Text style={styles.primaryBtnText}>Play Again</Text>
@@ -353,5 +377,30 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     color: THEME.textMuted,
     fontSize: 15,
+  },
+  unlockBanner: {
+    backgroundColor: 'rgba(201,168,76,0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.4)',
+    padding: 14,
+    gap: 4,
+  },
+  unlockBannerTitle: {
+    color: THEME.gold,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  unlockBannerSub: {
+    color: THEME.textPrimary,
+    fontSize: 13,
+  },
+  unlockBannerCta: {
+    color: THEME.gold,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 2,
   },
 });

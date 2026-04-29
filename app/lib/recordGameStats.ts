@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { CARD_BACKS } from '../assets/cardbacks'
+import { CARD_FACES } from '../assets/cardfaces'
 
 export type GameResult = {
   userId: string
@@ -21,6 +23,49 @@ export type GameResult = {
   opponentId?: string
   opponentUsername?: string
   suitWonWith?: string
+}
+
+// Returns newly unlocked design IDs (backs and faces combined) so the caller
+// can show a notification. Call AFTER updating stats so counts are current.
+export async function checkAndGrantUnlocks(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('player_stats')
+    .select('games_played, games_won, unlocked_card_backs, unlocked_card_faces')
+    .eq('id', userId)
+    .single()
+
+  if (!data) return []
+
+  const gamesPlayed: number = data.games_played ?? 0
+  const gamesWon: number = data.games_won ?? 0
+  const currentBacks: string[] = data.unlocked_card_backs ?? ['back_00']
+  const currentFaces: string[] = data.unlocked_card_faces ?? ['face_00']
+
+  const newBacks = CARD_BACKS.filter((d) => {
+    if (d.unlockType === 'default') return false
+    if (currentBacks.includes(d.id)) return false
+    if (d.unlockType === 'games_played') return gamesPlayed >= d.unlockCount
+    return gamesWon >= d.unlockCount
+  }).map((d) => d.id)
+
+  const newFaces = CARD_FACES.filter((d) => {
+    if (d.unlockType === 'default') return false
+    if (currentFaces.includes(d.id)) return false
+    if (d.unlockType === 'games_played') return gamesPlayed >= d.unlockCount
+    return gamesWon >= d.unlockCount
+  }).map((d) => d.id)
+
+  if (newBacks.length > 0 || newFaces.length > 0) {
+    await supabase
+      .from('player_stats')
+      .update({
+        unlocked_card_backs: [...currentBacks, ...newBacks],
+        unlocked_card_faces: [...currentFaces, ...newFaces],
+      })
+      .eq('id', userId)
+  }
+
+  return [...newBacks, ...newFaces]
 }
 
 export async function recordGameStats(result: GameResult): Promise<void> {

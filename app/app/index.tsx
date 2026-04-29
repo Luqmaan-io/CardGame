@@ -36,6 +36,17 @@ function FriendsIcon({ colour = '#616161' }: { colour?: string }) {
   )
 }
 
+function CardsIcon({ colour = '#616161' }: { colour?: string }) {
+  return (
+    <View style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Back card */}
+      <View style={{ position: 'absolute', width: 18, height: 24, borderRadius: 3, backgroundColor: colour, opacity: 0.45, transform: [{ rotate: '-10deg' }, { translateX: -5 }] }} />
+      {/* Front card */}
+      <View style={{ width: 18, height: 24, borderRadius: 3, backgroundColor: colour, transform: [{ rotate: '5deg' }] }} />
+    </View>
+  )
+}
+
 function TrophyIcon({ colour = '#616161' }: { colour?: string }) {
   return (
     <View style={{ width: 36, height: 36, alignItems: 'center' }}>
@@ -380,6 +391,12 @@ export default function HomeScreen() {
         <View style={styles.titleRow}>
           <Text style={styles.title}>POWERSTACK</Text>
           <View style={styles.profileBtnGroup}>
+            {/* Cards / Challenges button */}
+            <TouchableOpacity style={styles.navIconBtn} onPress={() => router.push('/challenges')}>
+              <CardsIcon colour={THEME.textMuted} />
+              <Text style={styles.navIconLabel}>Cards</Text>
+            </TouchableOpacity>
+
             {/* Leaderboard button */}
             <TouchableOpacity style={styles.navIconBtn} onPress={() => router.push('/leaderboard')}>
               <TrophyIcon />

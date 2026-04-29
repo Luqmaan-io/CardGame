@@ -28,7 +28,7 @@ import { getValidPlays } from '../../engine/ai';
 import { isValidPlay } from '../../engine/validation';
 import type { Card, GameState, Suit } from '../../engine/types';
 import { useAuth } from '../context/AuthContext';
-import { recordGameStats } from '../lib/recordGameStats';
+import { recordGameStats, checkAndGrantUnlocks } from '../lib/recordGameStats';
 
 // ─── Reaction emoji lookup ────────────────────────────────────────────────────
 
@@ -591,6 +591,52 @@ export default function GameScreen() {
       playSound('card_draw');
     }
 
+    // ── Opponent draws one or more cards ───────────────────────────────────
+    if (prevGameStateRef.current) {
+      for (const opponent of opponents) {
+        const prev = prevGameStateRef.current.players.find((p) => p.id === opponent.id);
+        if (!prev) continue;
+        const drawn = opponent.hand.length - prev.hand.length;
+        if (drawn <= 0) continue;
+
+        const oppRef = opponentRefs.current[opponent.id];
+        const oppIdx = opponents.findIndex((o) => o.id === opponent.id);
+        const backDesignId = (opponent as { cardBackId?: string }).cardBackId ?? 'back_00';
+
+        const getDeckPos = async () => {
+          const pos = await measurePosition(drawPileRef).catch(() => null);
+          return pos ? centreOf(pos) : fallback.deck;
+        };
+        const getOppPos = async () => {
+          if (oppRef) {
+            const pos = await measurePosition({ current: oppRef }).catch(() => null);
+            if (pos) return centreOf(pos);
+          }
+          return fallback.opponent(oppIdx, opponents.length);
+        };
+
+        Promise.all([getDeckPos(), getOppPos()]).then(([fromPos, toPos]) => {
+          for (let i = 0; i < drawn; i++) {
+            overlayRef.current?.addCards([{
+              id: animId(),
+              card: null,
+              fromX: fromPos.x,
+              fromY: fromPos.y,
+              toX: toPos.x,
+              toY: toPos.y,
+              delay: i * 150,
+              duration: 300,
+              backDesignId,
+            }]);
+            if (i > 0) {
+              setTimeout(() => playSound('card_draw'), i * 150);
+            }
+          }
+        });
+        playSound('card_draw');
+      }
+    }
+
     // ── Penalty draw ────────────────────────────────────────────────────────
     if (
       prevGameStateRef.current &&
@@ -809,6 +855,14 @@ export default function GameScreen() {
       wasKicked: gameStatsRef.current.wasKicked,
       opponentUsername,
       suitWonWith: gameStatsRef.current.lastSuitWonWith,
+    }).then(() => {
+      checkAndGrantUnlocks(profile.id)
+        .then((ids) => {
+          if (ids.length > 0) {
+            useGameStore.getState().setNewlyUnlockedDesigns(ids);
+          }
+        })
+        .catch(() => { /* best-effort */ });
     }).catch(() => { /* best-effort — don't block UI */ });
   }, [gameState?.phase]);
 

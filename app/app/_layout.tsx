@@ -112,6 +112,7 @@ function RootLayoutInner() {
         <Stack.Screen name="results" options={{ title: 'Results', headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ title: 'Profile', headerShown: false }} />
+        <Stack.Screen name="challenges" options={{ title: 'Cards', headerShown: false }} />
       </Stack>
     </>
   );

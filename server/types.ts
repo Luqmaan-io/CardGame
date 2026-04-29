@@ -8,6 +8,8 @@ export interface RoomPlayer {
   userId?: string;
   avatarId?: string;
   isAI?: boolean;
+  cardBackId?: string;
+  cardFaceId?: string;
 }
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished';

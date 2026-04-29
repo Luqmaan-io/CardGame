@@ -33,6 +33,7 @@ interface GameStore {
   connectionState: ConnectionState;
   pendingGameStats: GameResult | null;
   pendingReaction: { playerId: string; reactionId: string } | null;
+  newlyUnlockedDesigns: string[];  // design IDs unlocked this game
 
   setGameState: (state: GameState) => void;
   setError: (error: string | null) => void;
@@ -48,6 +49,7 @@ interface GameStore {
   setConnectionState: (state: ConnectionState) => void;
   setPendingGameStats: (stats: GameResult | null) => void;
   setPendingReaction: (r: { playerId: string; reactionId: string } | null) => void;
+  setNewlyUnlockedDesigns: (ids: string[]) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -63,6 +65,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   connectionState: 'connecting',
   pendingGameStats: null,
   pendingReaction: null,
+  newlyUnlockedDesigns: [],
 
   setGameState: (state) => set({ gameState: state, selectedCards: [] }),
   setError: (error) => set({ error }),
@@ -70,6 +73,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setConnectionState: (state) => set({ connectionState: state }),
   setPendingGameStats: (stats) => set({ pendingGameStats: stats }),
   setPendingReaction: (r) => set({ pendingReaction: r }),
+  setNewlyUnlockedDesigns: (ids) => set({ newlyUnlockedDesigns: ids }),
 
   setRoom: (roomId, playerId) => set({ roomId, myPlayerId: playerId }),
 
@@ -107,5 +111,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       roomInfo: null,
       selectedCards: [],
       myPlayerId: '',
+      newlyUnlockedDesigns: [],
     }),
 }));

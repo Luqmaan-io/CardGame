@@ -10,6 +10,8 @@ type Profile = {
   friendCode: string
   colourHex: string
   isGuest: boolean
+  cardBackId: string
+  cardFaceId: string
 }
 
 type AuthContextType = {
@@ -146,6 +148,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           friendCode: data.friend_code,
           colourHex: data.colour_hex,
           isGuest: data.is_guest,
+          cardBackId: data.card_back_id ?? 'back_00',
+          cardFaceId: data.card_face_id ?? 'face_00',
         })
       }
     } catch (err: unknown) {
@@ -192,6 +196,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       friendCode: '',
       colourHex: '#378ADD',
       isGuest: true,
+      cardBackId: 'back_00',
+      cardFaceId: 'face_00',
     }
 
     if (Platform.OS === 'web') {
@@ -211,6 +217,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username: updates.username,
         avatar_id: updates.avatarId,
         colour_hex: updates.colourHex,
+        card_back_id: updates.cardBackId,
+        card_face_id: updates.cardFaceId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id)

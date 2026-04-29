@@ -25,6 +25,8 @@ type QueueEntry = {
   playerName: string;
   avatarId: string;
   colourHex: string;
+  cardBackId: string;
+  cardFaceId: string;
   joinedAt: number;
 };
 
@@ -116,6 +118,8 @@ function initGameState(room: Room): GameState {
     isHuman: true,
     colourHex: p.colourHex,
     avatarId: p.avatarId,
+    cardBackId: p.cardBackId ?? 'back_00',
+    cardFaceId: p.cardFaceId ?? 'face_00',
   }));
 
   const startCard = remaining[0]!;
@@ -176,6 +180,8 @@ async function startMatchmakingGame(io: Server): Promise<void> {
       name: p.playerName,
       avatarId: p.avatarId,
       colourHex: p.colourHex,
+      cardBackId: p.cardBackId,
+      cardFaceId: p.cardFaceId,
       isAI: false,
     })),
     maxPlayers: TARGET_PLAYERS,
@@ -297,14 +303,14 @@ function getBestSuit(hand: Card[]): Suit {
 }
 
 export function registerGameHandlers(io: Server, socket: Socket): void {
-  // room:create — { maxPlayers: 2 | 3 | 4, name, userId?, colourHex?, avatarId?, turnDuration? }
-  socket.on('room:create', async (data: { maxPlayers: 2 | 3 | 4; name: string; userId?: string; colourHex?: string; avatarId?: string; turnDuration?: number }) => {
+  // room:create — { maxPlayers: 2 | 3 | 4, name, userId?, colourHex?, avatarId?, cardBackId?, cardFaceId?, turnDuration? }
+  socket.on('room:create', async (data: { maxPlayers: 2 | 3 | 4; name: string; userId?: string; colourHex?: string; avatarId?: string; cardBackId?: string; cardFaceId?: string; turnDuration?: number }) => {
     try {
       const maxPlayers = data.maxPlayers ?? 4;
       const name = data.name ?? 'Player';
       const turnDuration = data.turnDuration ?? 30;
       const room = await createRoom(maxPlayers, turnDuration);
-      const joined = await joinRoom(room.id, socket.id, name, data.userId, data.colourHex, data.avatarId);
+      const joined = await joinRoom(room.id, socket.id, name, data.userId, data.colourHex, data.avatarId, data.cardBackId, data.cardFaceId);
       if (joined instanceof Error) {
         socket.emit('game:error', { message: joined.message });
         return;
@@ -317,10 +323,10 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     }
   });
 
-  // room:join — { roomId, name, userId?, colourHex?, avatarId? }
-  socket.on('room:join', async (data: { roomId: string; name: string; userId?: string; colourHex?: string; avatarId?: string }) => {
+  // room:join — { roomId, name, userId?, colourHex?, avatarId?, cardBackId?, cardFaceId? }
+  socket.on('room:join', async (data: { roomId: string; name: string; userId?: string; colourHex?: string; avatarId?: string; cardBackId?: string; cardFaceId?: string }) => {
     try {
-      const result = await joinRoom(data.roomId, socket.id, data.name, data.userId, data.colourHex, data.avatarId);
+      const result = await joinRoom(data.roomId, socket.id, data.name, data.userId, data.colourHex, data.avatarId, data.cardBackId, data.cardFaceId);
       if (result instanceof Error) {
         socket.emit('game:error', { message: result.message });
         return;
@@ -649,9 +655,9 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
     }
   });
 
-  // queue:join — { playerId, playerName, avatarId, colourHex }
-  socket.on('queue:join', ({ playerId, playerName, avatarId, colourHex }: {
-    playerId: string; playerName: string; avatarId: string; colourHex: string;
+  // queue:join — { playerId, playerName, avatarId, colourHex, cardBackId?, cardFaceId? }
+  socket.on('queue:join', ({ playerId, playerName, avatarId, colourHex, cardBackId, cardFaceId }: {
+    playerId: string; playerName: string; avatarId: string; colourHex: string; cardBackId?: string; cardFaceId?: string;
   }) => {
     if (matchmakingQueue.find((e) => e.socketId === socket.id)) return;
 
@@ -661,6 +667,8 @@ export function registerGameHandlers(io: Server, socket: Socket): void {
       playerName,
       avatarId,
       colourHex,
+      cardBackId: cardBackId ?? 'back_00',
+      cardFaceId: cardFaceId ?? 'face_00',
       joinedAt: Date.now(),
     });
 

@@ -48,22 +48,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 15000)
 
-    // Get initial session
+    // Get initial session — real session always takes priority over guest localStorage
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       clearTimeout(safetyTimeout)
 
       if (session?.user) {
-        // Clear any stale guest state
+        // Real session found — clear any stale guest data and proceed as authed user
+        setIsGuest(false)
         if (Platform.OS === 'web') {
           localStorage.removeItem('guest_profile')
         }
-        setIsGuest(false)
         setSession(session)
         setUser(session.user)
         fetchProfile(session.user.id)
       } else {
-        // Check for stored guest session on web
+        // No real session — only now check for a stored guest session
         if (Platform.OS === 'web') {
           const stored = localStorage.getItem('guest_profile')
           if (stored) {
@@ -87,20 +87,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth event:', event, !!session)
-
-        setSession(session)
-        setUser(session?.user ?? null)
-
         if (event === 'SIGNED_IN' && session?.user) {
-          // Clear guest state if they just signed in
+          // Clear guest state FIRST so AuthGate sees the correct state atomically
           setIsGuest(false)
+          if (Platform.OS === 'web') {
+            localStorage.removeItem('guest_profile')
+          }
+          setSession(session)
+          setUser(session.user)
           await fetchProfile(session.user.id)
         } else if (event === 'SIGNED_OUT') {
-          setProfile(null)
           setIsGuest(false)
+          setSession(null)
+          setUser(null)
+          setProfile(null)
           setIsLoading(false)
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          setSession(session)
+          setUser(session.user)
         } else if (!session) {
+          setSession(null)
+          setUser(null)
           setProfile(null)
           setIsLoading(false)
         }
@@ -166,17 +173,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (email: string, password: string, username: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { username } }
     })
     if (error) throw error
+    // Eagerly clear guest state so the UI updates before onAuthStateChange fires
+    if (data?.session) {
+      setIsGuest(false)
+      if (Platform.OS === 'web') {
+        localStorage.removeItem('guest_profile')
+      }
+    }
   }
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+    // Eagerly clear guest state so the UI updates before onAuthStateChange fires
+    if (data?.session) {
+      setIsGuest(false)
+      if (Platform.OS === 'web') {
+        localStorage.removeItem('guest_profile')
+      }
+    }
   }
 
   const signOut = async () => {

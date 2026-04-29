@@ -21,33 +21,32 @@ function SocketProvider() {
 // Route protection: redirect to /auth when unauthenticated non-guest.
 // Guests can always navigate to /auth manually (to sign in or create account).
 function AuthGate() {
-  const { session, isGuest, isLoading } = useAuth();
+  const { session, user, isGuest, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;  // wait until layout is mounted
-    if (isLoading) return;  // wait until auth state is known
+    if (isLoading) return;
 
     const inAuthScreen = segments[0] === 'auth';
+    // A real session requires both a Supabase session token AND a loaded user object,
+    // and must not be in guest mode (guest sign-in clears isGuest before we get here).
+    const hasRealSession = !!session && !!user && !isGuest;
 
-    // No session and not a guest — must authenticate
-    if (!session && !isGuest && !inAuthScreen) {
+    // Fully authenticated on /auth — send home
+    if (hasRealSession && inAuthScreen) {
+      router.replace('/');
+      return;
+    }
+
+    // No session at all (not guest, not authed) — must sign in
+    if (!hasRealSession && !isGuest && !inAuthScreen) {
       router.replace('/auth');
       return;
     }
 
-    // Fully authenticated (real session) on auth screen — send home
-    // Guests are allowed through: they may want to sign in or create account
-    if (session && !isGuest && inAuthScreen) {
-      router.replace('/');
-    }
-  }, [mounted, isLoading, session, isGuest, segments]);
+    // Guest navigating to /auth — allowed through, do nothing
+  }, [isLoading, session, user, isGuest, segments]);
 
   return null;
 }

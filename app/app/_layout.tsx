@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, Text } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 import {
   CormorantGaramond_400Regular,
@@ -73,7 +73,7 @@ function LoadingScreen() {
         fontSize: 12,
         letterSpacing: 2,
       }}>
-        Loading...
+        Connecting...
       </Text>
     </View>
   );
@@ -81,24 +81,9 @@ function LoadingScreen() {
 
 function RootLayoutInner() {
   const { isLoading } = useAuth();
-  const [forceShow, setForceShow] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!isLoading) {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      return;
-    }
-    timeoutRef.current = setTimeout(() => {
-      console.warn('App loading timeout — forcing to auth screen');
-      setForceShow(true);
-    }, 10000);
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [isLoading]);
-
-  if (isLoading && !forceShow) return <LoadingScreen />;
+  // AuthContext owns the single 30s timeout — no competing deadline here.
+  if (isLoading) return <LoadingScreen />;
 
   return (
     <>

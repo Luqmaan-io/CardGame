@@ -39,50 +39,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    // Safety timeout — if Supabase takes more than 15 seconds,
-    // force the app to continue as unauthenticated
+    // Single 30-second safety timeout — Supabase free tier cold starts can take this long.
+    // On timeout: stop loading and show auth screen. Do NOT fall back to guest mode —
+    // the user may have a real account and should be given the chance to sign in.
     const safetyTimeout = setTimeout(() => {
       if (mounted && isLoading) {
-        console.warn('Auth timeout — continuing as unauthenticated')
+        console.warn('Auth timeout after 30s — showing auth screen')
         setIsLoading(false)
       }
-    }, 15000)
+    }, 30000)
 
-    // Get initial session — real session always takes priority over guest localStorage
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return
-      clearTimeout(safetyTimeout)
+    // Check session with one retry on failure — handles transient network errors
+    // on Supabase free tier cold starts.
+    const checkSession = async (attempt = 1): Promise<void> => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
 
-      if (session?.user) {
-        // Real session found — clear any stale guest data and proceed as authed user
-        setIsGuest(false)
-        if (Platform.OS === 'web') {
-          localStorage.removeItem('guest_profile')
-        }
-        setSession(session)
-        setUser(session.user)
-        fetchProfile(session.user.id)
-      } else {
-        // No real session — only now check for a stored guest session
-        if (Platform.OS === 'web') {
-          const stored = localStorage.getItem('guest_profile')
-          if (stored) {
-            try {
-              const guestProfile = JSON.parse(stored)
-              setIsGuest(true)
-              setProfile(guestProfile)
-            } catch {}
+        if (!mounted) return
+        clearTimeout(safetyTimeout)
+
+        if (session?.user) {
+          // Real session — clear any stale guest data and proceed as authenticated user
+          setIsGuest(false)
+          if (Platform.OS === 'web') {
+            localStorage.removeItem('guest_profile')
           }
+          setSession(session)
+          setUser(session.user)
+          fetchProfile(session.user.id)
+        } else {
+          // Supabase explicitly confirmed no session — only now restore guest if stored
+          if (Platform.OS === 'web') {
+            const stored = localStorage.getItem('guest_profile')
+            if (stored) {
+              try {
+                const guestProfile = JSON.parse(stored)
+                setIsGuest(true)
+                setProfile(guestProfile)
+              } catch {}
+            }
+          }
+          setIsLoading(false)
         }
-        setIsLoading(false)
-      }
-    }).catch((err) => {
-      console.error('Session check failed:', err)
-      if (mounted) {
+      } catch (err) {
+        if (!mounted) return
+        if (attempt < 2) {
+          console.log('Session check failed, retrying in 3s...')
+          await new Promise(resolve => setTimeout(resolve, 3000))
+          return checkSession(attempt + 1)
+        }
+        // Both attempts failed — do NOT fall back to guest. Show auth screen.
+        console.error('Session check failed after retries:', err)
         clearTimeout(safetyTimeout)
         setIsLoading(false)
       }
-    })
+    }
+
+    checkSession()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

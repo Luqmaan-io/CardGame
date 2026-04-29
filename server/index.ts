@@ -51,6 +51,10 @@ async function startServer(): Promise<void> {
     // Server continues in single-dyno mode without the Redis adapter
   }
 
+  app.get('/online-count', (_req, res) => {
+    res.json({ count: io.engine.clientsCount });
+  });
+
   io.on('connection', (socket) => {
     console.log(`[+] Socket connected: ${socket.id}`);
     registerGameHandlers(io, socket);

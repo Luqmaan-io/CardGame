@@ -2,6 +2,12 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, Text } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
+import { useFonts } from 'expo-font';
+import {
+  CormorantGaramond_400Regular,
+  CormorantGaramond_600SemiBold,
+  CormorantGaramond_400Regular_Italic,
+} from '@expo-google-fonts/cormorant-garamond';
 import { useSocket } from '../hooks/useSocket';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { THEME } from '../utils/theme';
@@ -50,7 +56,7 @@ function LoadingScreen() {
       gap: 16,
     }}>
       <Text style={{
-        fontFamily: 'serif',
+        fontFamily: 'Cormorant_600SemiBold',
         fontSize: 28,
         color: '#C9A84C',
         letterSpacing: 4,
@@ -101,7 +107,7 @@ function RootLayoutInner() {
           contentStyle: { backgroundColor: THEME.appBackground },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'Card Game', headerShown: false }} />
+        <Stack.Screen name="index" options={{ title: 'Powerstack', headerShown: false }} />
         <Stack.Screen name="game" options={{ title: 'Game', headerShown: false }} />
         <Stack.Screen name="results" options={{ title: 'Results', headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
@@ -112,6 +118,15 @@ function RootLayoutInner() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Cormorant_400Regular: CormorantGaramond_400Regular,
+    Cormorant_600SemiBold: CormorantGaramond_600SemiBold,
+    Cormorant_400Italic: CormorantGaramond_400Regular_Italic,
+  });
+
+  // Render before fonts are loaded — AuthProvider still mounts so auth
+  // resolves in the background; fonts will be available by the time
+  // LoadingScreen/content actually renders.
   return (
     <GestureHandlerRootView style={styles.root}>
       <AuthProvider>

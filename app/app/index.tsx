@@ -18,6 +18,7 @@ import { HowToPlayModal } from '../components/HowToPlayModal';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/Avatar';
 import { useFriendRequests } from '../hooks/useFriendRequests';
+import HomeActivity from '../components/HomeActivity';
 import { THEME } from '../utils/theme';
 
 function FriendsIcon({ colour = '#616161' }: { colour?: string }) {
@@ -264,7 +265,7 @@ export default function HomeScreen() {
           contentContainerStyle={styles.waitingScroll}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Card Game</Text>
+          <Text style={styles.title}>POWERSTACK</Text>
 
           <View style={styles.waitingCard}>
             {/* Room code section */}
@@ -326,25 +327,58 @@ export default function HomeScreen() {
   // ── Lobby ─────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Subtle grid background — web only */}
+      {Platform.OS === 'web' && (
+        <View style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          opacity: 0.03,
+          // @ts-ignore — web-only style
+          backgroundImage: `linear-gradient(rgba(201,168,76,1) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,1) 1px, transparent 1px)`,
+          backgroundSize: '60px 60px',
+          pointerEvents: 'none',
+        }} />
+      )}
       <ScrollView
         contentContainerStyle={styles.lobbyScroll}
         keyboardShouldPersistTaps="handled"
       >
         {/* Guest banner */}
         {isGuest && (
-          <View style={styles.guestBanner}>
-            <Text style={styles.guestBannerText}>
-              Playing as guest — create an account to save your stats
+          <View style={{
+            backgroundColor: 'rgba(201,168,76,0.08)',
+            borderBottomWidth: 0.5,
+            borderBottomColor: 'rgba(201,168,76,0.2)',
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginHorizontal: -20,
+            marginTop: -48,
+            marginBottom: 24,
+          }}>
+            <Text style={{ color: THEME.textMuted, fontSize: 12 }}>
+              Playing as guest — stats not saved
             </Text>
-            <TouchableOpacity onPress={() => router.push('/auth')}>
-              <Text style={styles.guestBannerLink}>Sign up</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity onPress={() => router.push('/auth')}>
+                <Text style={{ color: THEME.gold, fontSize: 12, fontWeight: '500' }}>
+                  Sign in
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/auth')}>
+                <Text style={{ color: THEME.gold, fontSize: 12, fontWeight: '500' }}>
+                  Create account
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
         {/* Title row with profile icon */}
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Card Game</Text>
+          <Text style={styles.title}>POWERSTACK</Text>
           <View style={styles.profileBtnGroup}>
             {/* Leaderboard button */}
             <TouchableOpacity style={styles.navIconBtn} onPress={() => router.push('/leaderboard')}>
@@ -650,11 +684,14 @@ export default function HomeScreen() {
           <Text style={styles.howToPlayBtnText}>? How to play</Text>
         </TouchableOpacity>
 
+        {/* ── Live section ── */}
+        <HomeActivity userId={profile?.id ?? null} isGuest={isGuest} />
+
         {/* ── Landing page link ── */}
         {Platform.OS === 'web' && (
           <TouchableOpacity
             onPress={() => { if (typeof window !== 'undefined') window.open('/landing.html', '_blank'); }}
-            style={{ marginTop: 24, marginBottom: 8, alignItems: 'center' }}
+            style={{ marginTop: 8, marginBottom: 8, alignItems: 'center' }}
           >
             <Text style={{ color: THEME.textMuted, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' }}>
               What is Powerstack?
@@ -709,11 +746,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   title: {
-    fontSize: 38,
-    fontWeight: '800',
+    fontFamily: 'Cormorant_600SemiBold',
+    fontSize: 42,
     color: THEME.gold,
     textAlign: 'center',
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
   profileBtnGroup: {
     position: 'absolute',
@@ -767,24 +804,25 @@ const styles = StyleSheet.create({
   },
   modeBtn: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 6,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'rgba(201,168,76,0.18)',
-    backgroundColor: THEME.cardBackground,
+    padding: 16,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: 'rgba(201,168,76,0.25)',
+    backgroundColor: 'rgba(17,34,64,0.6)',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
   modeBtnActive: {
-    backgroundColor: THEME.surfaceBackground,
+    backgroundColor: 'rgba(17,34,64,0.9)',
     borderColor: THEME.gold,
   },
   modeBtnTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '500',
     color: THEME.textMuted,
     textAlign: 'center',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   modeBtnTitleActive: {
     color: THEME.gold,
@@ -793,6 +831,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: THEME.textMuted,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   modeBtnSubActive: {
     color: THEME.textSecondary,

@@ -701,6 +701,54 @@ export default function HomeScreen() {
           <Text style={styles.howToPlayBtnText}>? How to play</Text>
         </TouchableOpacity>
 
+        {/* ── Guest sign-in prompt ── */}
+        {isGuest && (
+          <View style={{
+            marginHorizontal: 16,
+            marginBottom: 16,
+            padding: 16,
+            borderWidth: 0.5,
+            borderColor: THEME.gold,
+            borderRadius: 8,
+            backgroundColor: 'rgba(201,168,76,0.06)',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            <Text style={{ color: THEME.textPrimary, fontSize: 14 }}>
+              Playing as guest — your stats aren't being saved
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => router.push('/auth')}
+                style={{
+                  backgroundColor: THEME.gold,
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  borderRadius: 4,
+                }}
+              >
+                <Text style={{ color: THEME.appBackground, fontSize: 13, fontWeight: '500' }}>
+                  Sign in
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push('/auth')}
+                style={{
+                  borderWidth: 0.5,
+                  borderColor: THEME.gold,
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  borderRadius: 4,
+                }}
+              >
+                <Text style={{ color: THEME.gold, fontSize: 13 }}>
+                  Create account
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* ── Live section ── */}
         <HomeActivity userId={profile?.id ?? null} isGuest={isGuest} />
 

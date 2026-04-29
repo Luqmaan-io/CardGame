@@ -18,7 +18,8 @@ function SocketProvider() {
   return null;
 }
 
-// Route protection: redirect to /auth when unauthenticated non-guest
+// Route protection: redirect to /auth when unauthenticated non-guest.
+// Guests can always navigate to /auth manually (to sign in or create account).
 function AuthGate() {
   const { session, isGuest, isLoading } = useAuth();
   const segments = useSegments();
@@ -34,11 +35,16 @@ function AuthGate() {
     if (isLoading) return;  // wait until auth state is known
 
     const inAuthScreen = segments[0] === 'auth';
-    const isAuthed = !!session || isGuest;
 
-    if (!isAuthed && !inAuthScreen) {
+    // No session and not a guest — must authenticate
+    if (!session && !isGuest && !inAuthScreen) {
       router.replace('/auth');
-    } else if (isAuthed && inAuthScreen) {
+      return;
+    }
+
+    // Fully authenticated (real session) on auth screen — send home
+    // Guests are allowed through: they may want to sign in or create account
+    if (session && !isGuest && inAuthScreen) {
       router.replace('/');
     }
   }, [mounted, isLoading, session, isGuest, segments]);

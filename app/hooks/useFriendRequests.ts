@@ -56,8 +56,9 @@ export function useFriendRequests(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return
 
+    // Set up all callbacks BEFORE calling subscribe()
     const channel = supabase
-      .channel(`friend-requests-${userId}`)
+      .channel(`realtime:friend-requests-${userId}`)
       .on(
         'postgres_changes',
         {
@@ -98,7 +99,9 @@ export function useFriendRequests(userId: string | undefined) {
           setFriendRequestCount((prev) => Math.max(0, prev - 1))
         }
       )
-      .subscribe()
+
+    // Subscribe AFTER all callbacks are registered
+    channel.subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [userId])

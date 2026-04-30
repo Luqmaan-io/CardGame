@@ -58,7 +58,7 @@ export function useFriendRequests(userId: string | undefined) {
 
     // Set up all callbacks BEFORE calling subscribe()
     const channel = supabase
-      .channel(`realtime:friend-requests-${userId}`)
+      .channel(`friend-requests-${userId}`)
       .on(
         'postgres_changes',
         {

@@ -207,7 +207,6 @@ export async function getRankedLeaderboard(
       ranked_longest_streak,
       profiles(username, avatar_id, colour_hex)
     `)
-    .gt('ranked_games_played', 0)
     .order('ranked_wins', { ascending: false })
     .limit(limit)
 

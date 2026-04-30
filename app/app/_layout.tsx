@@ -1,7 +1,7 @@
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, Text } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useFonts } from 'expo-font';
 import {
   CormorantGaramond_400Regular,
@@ -20,13 +20,17 @@ function SocketProvider() {
 
 // Route protection: redirect to /auth when unauthenticated non-guest.
 // Guests can always navigate to /auth manually (to sign in or create account).
+// useRootNavigationState guards against "navigate before mounting" errors —
+// navigation only fires once the navigator key exists (i.e. Stack is mounted).
 function AuthGate() {
   const { session, user, isGuest, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const navigationState = useRootNavigationState();
 
   useEffect(() => {
-    if (isLoading) return;
+    if (!navigationState?.key) return;  // navigator not mounted yet
+    if (isLoading) return;              // auth state not resolved yet
 
     const inAuthScreen = segments[0] === 'auth';
     // A real session requires both a Supabase session token AND a loaded user object,
@@ -46,65 +50,17 @@ function AuthGate() {
     }
 
     // Guest navigating to /auth — allowed through, do nothing
-  }, [isLoading, session, user, isGuest, segments]);
+  }, [navigationState?.key, isLoading, session, user, isGuest, segments]);
 
   return null;
 }
 
 function LoadingScreen() {
   return (
-    <View style={{
-      flex: 1,
-      backgroundColor: '#070C14',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 16,
-    }}>
-      <Text style={{
-        fontFamily: 'Cormorant_600SemiBold',
-        fontSize: 28,
-        color: '#C9A84C',
-        letterSpacing: 4,
-      }}>
-        POWERSTACK
-      </Text>
-      <Text style={{
-        color: '#5A6A7E',
-        fontSize: 12,
-        letterSpacing: 2,
-      }}>
-        Connecting...
-      </Text>
+    <View style={styles.loadingContainer}>
+      <Text style={styles.loadingTitle}>POWERSTACK</Text>
+      <Text style={styles.loadingSubtitle}>Connecting...</Text>
     </View>
-  );
-}
-
-function RootLayoutInner() {
-  const { isLoading } = useAuth();
-
-  // AuthContext owns the single 30s timeout — no competing deadline here.
-  if (isLoading) return <LoadingScreen />;
-
-  return (
-    <>
-      <SocketProvider />
-      <AuthGate />
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: THEME.cardBackground },
-          headerTintColor: THEME.gold,
-          headerTitleStyle: { fontWeight: '600', color: THEME.textPrimary },
-          contentStyle: { backgroundColor: THEME.appBackground },
-        }}
-      >
-        <Stack.Screen name="index" options={{ title: 'Powerstack', headerShown: false }} />
-        <Stack.Screen name="game" options={{ title: 'Game', headerShown: false }} />
-        <Stack.Screen name="results" options={{ title: 'Results', headerShown: false }} />
-        <Stack.Screen name="auth" options={{ headerShown: false }} />
-        <Stack.Screen name="profile" options={{ title: 'Profile', headerShown: false }} />
-        <Stack.Screen name="challenges" options={{ title: 'Cards', headerShown: false }} />
-      </Stack>
-    </>
   );
 }
 
@@ -115,18 +71,61 @@ export default function RootLayout() {
     Cormorant_400Italic: CormorantGaramond_400Regular_Italic,
   });
 
-  // Render before fonts are loaded — AuthProvider still mounts so auth
-  // resolves in the background; fonts will be available by the time
-  // LoadingScreen/content actually renders.
+  // The Stack must always render so the navigator mounts and AuthGate can navigate.
+  // LoadingScreen is layered on top while auth resolves — it does NOT replace the Stack.
   return (
     <GestureHandlerRootView style={styles.root}>
       <AuthProvider>
-        <RootLayoutInner />
+        <SocketProvider />
+        <AuthGate />
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor: THEME.cardBackground },
+            headerTintColor: THEME.gold,
+            headerTitleStyle: { fontWeight: '600', color: THEME.textPrimary },
+            contentStyle: { backgroundColor: THEME.appBackground },
+          }}
+        >
+          <Stack.Screen name="index" options={{ title: 'Powerstack', headerShown: false }} />
+          <Stack.Screen name="game" options={{ title: 'Game', headerShown: false }} />
+          <Stack.Screen name="results" options={{ title: 'Results', headerShown: false }} />
+          <Stack.Screen name="auth" options={{ headerShown: false }} />
+          <Stack.Screen name="profile" options={{ title: 'Profile', headerShown: false }} />
+          <Stack.Screen name="challenges" options={{ title: 'Cards', headerShown: false }} />
+        </Stack>
+        <LoadingOverlay />
       </AuthProvider>
     </GestureHandlerRootView>
   );
 }
 
+// Overlay rendered on top of the Stack while auth is loading.
+// Uses absoluteFillObject so it covers the blank Stack without unmounting it.
+function LoadingOverlay() {
+  const { isLoading } = useAuth();
+  if (!isLoading) return null;
+  return <LoadingScreen />;
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  loadingContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#070C14',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    zIndex: 999,
+  },
+  loadingTitle: {
+    fontFamily: 'Cormorant_600SemiBold',
+    fontSize: 28,
+    color: '#C9A84C',
+    letterSpacing: 4,
+  },
+  loadingSubtitle: {
+    color: '#5A6A7E',
+    fontSize: 12,
+    letterSpacing: 2,
+  },
 });

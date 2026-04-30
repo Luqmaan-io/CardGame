@@ -139,7 +139,6 @@ export default function HomeActivity({ userId, isGuest }: HomeActivityProps) {
           ranked_wins,
           profiles(username, avatar_id, colour_hex)
         `)
-        .gt('ranked_wins', 0)
         .order('ranked_wins', { ascending: false })
         .limit(3);
 

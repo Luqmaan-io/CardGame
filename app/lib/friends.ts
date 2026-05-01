@@ -162,68 +162,70 @@ export async function getFriends(userId: string): Promise<{
 export async function getGlobalLeaderboard(
   limit = 50
 ): Promise<LeaderboardEntry[]> {
-  const { data } = await supabase
+  const { data: stats } = await supabase
     .from('player_stats')
-    .select(`
-      id,
-      games_won,
-      games_played,
-      win_rate,
-      current_streak,
-      longest_streak,
-      profiles(username, avatar_id, colour_hex)
-    `)
+    .select('id, games_won, games_played, win_rate, current_streak, longest_streak')
     .order('games_won', { ascending: false })
     .limit(limit)
 
-  if (!data) return []
+  if (!stats || stats.length === 0) return []
 
-  return data.map((row, index) => ({
-    id: row.id,
-    username: (row.profiles as { username: string } | null)?.username ?? 'Unknown',
-    avatarId: (row.profiles as { avatar_id: string } | null)?.avatar_id ?? 'avatar_01',
-    colourHex: (row.profiles as { colour_hex: string } | null)?.colour_hex ?? '#378ADD',
-    gamesWon: row.games_won,
-    gamesPlayed: row.games_played,
-    winRate: row.win_rate,
-    currentStreak: row.current_streak,
-    longestStreak: row.longest_streak,
-    rank: index + 1,
-  }))
+  const ids = stats.map(s => s.id)
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_id, colour_hex')
+    .in('id', ids)
+
+  return stats.map((row, index) => {
+    const profile = profiles?.find(p => p.id === row.id)
+    return {
+      id: row.id,
+      username: profile?.username ?? 'Unknown',
+      avatarId: profile?.avatar_id ?? 'avatar_01',
+      colourHex: profile?.colour_hex ?? '#378ADD',
+      gamesWon: row.games_won,
+      gamesPlayed: row.games_played,
+      winRate: row.win_rate,
+      currentStreak: row.current_streak,
+      longestStreak: row.longest_streak,
+      rank: index + 1,
+    }
+  })
 }
 
 // Ranked leaderboard — Quick Play wins only
 export async function getRankedLeaderboard(
   limit = 50
 ): Promise<LeaderboardEntry[]> {
-  const { data } = await supabase
+  const { data: stats } = await supabase
     .from('player_stats')
-    .select(`
-      id,
-      ranked_wins,
-      ranked_games_played,
-      ranked_win_rate,
-      ranked_current_streak,
-      ranked_longest_streak,
-      profiles(username, avatar_id, colour_hex)
-    `)
+    .select('id, ranked_wins, ranked_games_played, ranked_win_rate, ranked_current_streak, ranked_longest_streak')
     .order('ranked_wins', { ascending: false })
     .limit(limit)
 
-  if (!data) return []
+  if (!stats || stats.length === 0) return []
 
-  return data.map((row, index) => ({
-    id: row.id,
-    username: (row.profiles as { username: string } | null)?.username ?? 'Unknown',
-    avatarId: (row.profiles as { avatar_id: string } | null)?.avatar_id ?? 'avatar_01',
-    colourHex: (row.profiles as { colour_hex: string } | null)?.colour_hex ?? '#378ADD',
-    gamesWon: (row as { ranked_wins: number }).ranked_wins,
-    gamesPlayed: (row as { ranked_games_played: number }).ranked_games_played,
-    winRate: (row as { ranked_win_rate: number }).ranked_win_rate,
-    currentStreak: (row as { ranked_current_streak: number }).ranked_current_streak,
-    longestStreak: (row as { ranked_longest_streak: number }).ranked_longest_streak,
-    rank: index + 1,
-  }))
+  const ids = stats.map(s => s.id)
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_id, colour_hex')
+    .in('id', ids)
+
+  return stats.map((row, index) => {
+    const profile = profiles?.find(p => p.id === row.id)
+    return {
+      id: row.id,
+      username: profile?.username ?? 'Unknown',
+      avatarId: profile?.avatar_id ?? 'avatar_01',
+      colourHex: profile?.colour_hex ?? '#378ADD',
+      gamesWon: row.ranked_wins,
+      gamesPlayed: row.ranked_games_played,
+      winRate: row.ranked_win_rate,
+      currentStreak: row.ranked_current_streak,
+      longestStreak: row.ranked_longest_streak,
+      rank: index + 1,
+    }
+  })
 }
 
 // Friends leaderboard — includes the current user
@@ -237,32 +239,33 @@ export async function getFriendsLeaderboard(
 
   const friendIds = [userId, ...(friendships ?? []).map((f: { friend_id: string }) => f.friend_id)]
 
-  const { data } = await supabase
+  const { data: stats } = await supabase
     .from('player_stats')
-    .select(`
-      id,
-      games_won,
-      games_played,
-      win_rate,
-      current_streak,
-      longest_streak,
-      profiles(username, avatar_id, colour_hex)
-    `)
+    .select('id, games_won, games_played, win_rate, current_streak, longest_streak')
     .in('id', friendIds)
     .order('games_won', { ascending: false })
 
-  if (!data) return []
+  if (!stats || stats.length === 0) return []
 
-  return data.map((row, index) => ({
-    id: row.id,
-    username: (row.profiles as { username: string } | null)?.username ?? 'Unknown',
-    avatarId: (row.profiles as { avatar_id: string } | null)?.avatar_id ?? 'avatar_01',
-    colourHex: (row.profiles as { colour_hex: string } | null)?.colour_hex ?? '#378ADD',
-    gamesWon: row.games_won,
-    gamesPlayed: row.games_played,
-    winRate: row.win_rate,
-    currentStreak: row.current_streak,
-    longestStreak: row.longest_streak,
-    rank: index + 1,
-  }))
+  const ids = stats.map(s => s.id)
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_id, colour_hex')
+    .in('id', ids)
+
+  return stats.map((row, index) => {
+    const profile = profiles?.find(p => p.id === row.id)
+    return {
+      id: row.id,
+      username: profile?.username ?? 'Unknown',
+      avatarId: profile?.avatar_id ?? 'avatar_01',
+      colourHex: profile?.colour_hex ?? '#378ADD',
+      gamesWon: row.games_won,
+      gamesPlayed: row.games_played,
+      winRate: row.win_rate,
+      currentStreak: row.current_streak,
+      longestStreak: row.longest_streak,
+      rank: index + 1,
+    }
+  })
 }

@@ -24,11 +24,9 @@ type ActivityItem = {
 type TopPlayer = {
   id: string
   ranked_wins: number
-  profiles: {
-    username: string
-    avatar_id: string
-    colour_hex: string
-  } | null
+  username: string
+  avatar_id: string
+  colour_hex: string
 }
 
 function SectionHeader({ title }: { title: string }) {
@@ -132,17 +130,32 @@ export default function HomeActivity({ userId, isGuest }: HomeActivityProps) {
   // ── Leaderboard snapshot ──────────────────────────────────────────────────
   useEffect(() => {
     const fetchLeaderboardSnapshot = async () => {
-      const { data } = await supabase
+      const { data: stats } = await supabase
         .from('player_stats')
-        .select(`
-          id,
-          ranked_wins,
-          profiles(username, avatar_id, colour_hex)
-        `)
+        .select('id, ranked_wins')
         .order('ranked_wins', { ascending: false })
         .limit(3);
 
-      if (data) setTopPlayers(data as TopPlayer[]);
+      if (!stats || stats.length === 0) return;
+
+      const ids = stats.map(s => s.id);
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_id, colour_hex')
+        .in('id', ids);
+
+      const combined: TopPlayer[] = stats.map(s => {
+        const profile = profiles?.find(p => p.id === s.id);
+        return {
+          id: s.id,
+          ranked_wins: s.ranked_wins,
+          username: profile?.username ?? 'Unknown',
+          avatar_id: profile?.avatar_id ?? 'avatar_01',
+          colour_hex: profile?.colour_hex ?? '#378ADD',
+        };
+      });
+
+      setTopPlayers(combined);
     };
 
     fetchLeaderboardSnapshot();
@@ -264,7 +277,7 @@ export default function HomeActivity({ userId, isGuest }: HomeActivityProps) {
               }}>
                 <Text style={{ fontSize: 18, width: 24 }}>{medals[i]}</Text>
                 <Avatar
-                  avatarId={player.profiles?.avatar_id ?? 'avatar_01'}
+                  avatarId={player.avatar_id ?? 'avatar_01'}
                   size={32}
                   colourHex={medalColours[i] ?? THEME.gold}
                 />
@@ -274,7 +287,7 @@ export default function HomeActivity({ userId, isGuest }: HomeActivityProps) {
                   fontSize: 13,
                   fontWeight: i === 0 ? '500' : '400',
                 }}>
-                  {player.profiles?.username ?? 'Unknown'}
+                  {player.username ?? 'Unknown'}
                 </Text>
                 <Text style={{
                   color: medalColours[i] ?? THEME.gold,

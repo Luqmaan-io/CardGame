@@ -56,6 +56,15 @@ export function useFriendRequests(userId: string | undefined) {
   useEffect(() => {
     if (!userId) return
 
+    let active = true
+
+    // Remove any stale channel with the same name before creating a new one
+    supabase.getChannels().forEach((ch) => {
+      if (ch.topic === `realtime:friend-requests-${userId}`) {
+        supabase.removeChannel(ch)
+      }
+    })
+
     // Set up all callbacks BEFORE calling subscribe()
     const channel = supabase
       .channel(`friend-requests-${userId}`)
@@ -101,9 +110,14 @@ export function useFriendRequests(userId: string | undefined) {
       )
 
     // Subscribe AFTER all callbacks are registered
-    channel.subscribe()
+    channel.subscribe((_status) => {
+      if (!active) supabase.removeChannel(channel)
+    })
 
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      active = false
+      supabase.removeChannel(channel)
+    }
   }, [userId])
 
   function clearBadge() {

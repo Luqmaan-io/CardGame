@@ -48,7 +48,7 @@ export async function sendFriendRequest(
       `and(requester_id.eq.${myUserId},addressee_id.eq.${targetProfile.id}),` +
       `and(requester_id.eq.${targetProfile.id},addressee_id.eq.${myUserId})`
     )
-    .single()
+    .maybeSingle()
 
   if (existing) {
     if (existing.status === 'accepted') {
@@ -66,7 +66,8 @@ export async function sendFriendRequest(
     })
 
   if (error) {
-    return { success: false, error: 'Failed to send request' }
+    console.error('Friend request insert error:', error)
+    return { success: false, error: error.message ?? 'Failed to send request' }
   }
 
   return { success: true }

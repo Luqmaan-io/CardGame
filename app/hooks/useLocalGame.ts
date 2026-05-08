@@ -109,6 +109,8 @@ export function useLocalGame() {
       sessionScores,
       onCardsDeclarations: [],
       currentPlayerHasActed: false,
+      placements: [],
+      consecutiveDraws: {},
     };
 
     stateRef.current = initialState;

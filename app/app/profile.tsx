@@ -275,12 +275,14 @@ export default function ProfileScreen() {
             <Text style={styles.guestCardBody}>
               Create an account to save your stats, track wins, build streaks, and add friends.
             </Text>
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => router.replace('/auth')}
-            >
-              <Text style={styles.primaryBtnText}>Create account</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginTop: 4 }}>
+              <TouchableOpacity style={styles.pillBtn} onPress={() => router.replace('/auth')}>
+                <Text style={styles.pillBtnText}>Create account</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.pillBtnOutline} onPress={() => router.replace('/auth')}>
+                <Text style={[styles.pillBtnText, { color: THEME.gold }]}>Sign in</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -828,6 +830,7 @@ const styles = StyleSheet.create({
   },
   guestCardTitle: { fontSize: 18, fontWeight: '700', color: THEME.textPrimary },
   guestCardBody: { fontSize: 14, color: THEME.textSecondary, lineHeight: 20 },
-  primaryBtn: { backgroundColor: THEME.gold, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-  primaryBtnText: { color: THEME.appBackground, fontSize: 15, fontWeight: '700' },
+  pillBtn: { backgroundColor: THEME.gold, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center' },
+  pillBtnOutline: { borderWidth: 1, borderColor: THEME.gold, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center' },
+  pillBtnText: { color: THEME.appBackground, fontSize: 14, fontWeight: '700' },
 })
